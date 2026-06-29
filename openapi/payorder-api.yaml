@@ -1,0 +1,463 @@
+openapi: 3.1.0
+info:
+  title: PayOrder W3 Guardian API
+  version: 0.1.0
+  description: >
+    API do PayOrder W3 Guardian — geração, registro, consulta e pagamento de cobranças
+    como ordens de pagamento Web3 na Stellar Testnet, com registro verificável em contrato
+    Soroban. MVP opera exclusivamente em TESTNET. A wallet destino é resolvida
+    automaticamente a partir do tenant; nunca informada na criação da cobrança.
+servers:
+  - url: https://api-payorder.guardianlabs.com.br/api
+    description: VPS (Testnet)
+  - url: http://localhost:3000/api
+    description: Local
+tags:
+  - name: Tenants
+  - name: Payment Orders
+  - name: Public
+  - name: Health
+
+security:
+  - AdminJWT: []
+  - ApiKey: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness
+      security: []
+      responses:
+        "200": { description: OK }
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness (DB/Redis/Soroban RPC)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+
+  /tenants:
+    post:
+      tags: [Tenants]
+      summary: Cria tenant
+      security: [ { AdminJWT: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTenantRequest" }
+      responses:
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+    get:
+      tags: [Tenants]
+      summary: Lista tenants
+      security: [ { AdminJWT: [] } ]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, INACTIVE] } }
+        - { name: document_number, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Tenant" } }
+                  page: { type: integer }
+                  page_size: { type: integer }
+                  total: { type: integer }
+
+  /tenants/{id}:
+    get:
+      tags: [Tenants]
+      summary: Consulta tenant
+      security: [ { AdminJWT: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tenants/{id}/activate:
+    post:
+      tags: [Tenants]
+      summary: Ativa tenant
+      security: [ { AdminJWT: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Tenant" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tenants/{id}/deactivate:
+    post:
+      tags: [Tenants]
+      summary: Inativa tenant
+      security: [ { AdminJWT: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Tenant" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tenants/{id}/wallet:
+    get:
+      tags: [Tenants]
+      summary: Consulta wallet do tenant
+      security: [ { AdminJWT: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TenantWallet" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Tenants]
+      summary: Cadastra/atualiza wallet do tenant
+      description: Bloqueado se houver ordens ACTIVE (409 WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS).
+      security: [ { AdminJWT: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TenantWallet" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Tenant" } } } }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
+  /payment-orders:
+    post:
+      tags: [Payment Orders]
+      summary: Cria cobrança (manual/API/ERP)
+      description: >
+        A wallet destino NÃO é aceita no payload; é resolvida do tenant. Resolve tenant por
+        tenant_id, slug ou tenant_document. Idempotency-Key obrigatório.
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdempotencyKey" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePaymentOrderRequest" }
+            examples:
+              porTenantId:
+                value:
+                  tenant_id: tenant_123
+                  amount: "150.00"
+                  asset_code: XLM
+                  due_date: "2026-07-10"
+                  description: Cobrança gerada no PayOrder W3 Guardian
+                  external_id: ORDER-123456
+                  metadata: { source: manual, customer_reference: CLIENTE-999 }
+              erp:
+                value:
+                  source: ERP
+                  external_id: ERP-123456
+                  tenant_document: "12345678000199"
+                  amount: "150.00"
+                  asset_code: XLM
+                  due_date: "2026-07-10"
+                  description: Cobrança gerada pelo ERP
+                  callback_url: https://erp.example.com/webhook/payments
+                  metadata: { invoice_number: NF-1001, customer_reference: CLIENTE-999 }
+      responses:
+        "202":
+          description: Aceito (registro on-chain assíncrono)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentOrder" }
+        "200":
+          description: Ordem já existente (idempotência por tenant_id+external_id)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentOrder" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+    get:
+      tags: [Payment Orders]
+      summary: Lista cobranças
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/OrderStatus" } }
+        - { name: tenant_id, in: query, schema: { type: string } }
+        - { name: external_id, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: page_size, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/PaymentOrder" } }
+                  page: { type: integer }
+                  page_size: { type: integer }
+                  total: { type: integer }
+
+  /payment-orders/{id}:
+    get:
+      tags: [Payment Orders]
+      summary: Consulta cobrança por id
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentOrder" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /payment-orders/{id}/status:
+    get:
+      tags: [Payment Orders]
+      summary: Status on-chain/off-chain
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { $ref: "#/components/schemas/OrderStatus" }
+                  onchain_status: { $ref: "#/components/schemas/OrderStatus" }
+                  blockchain_transaction_hash: { type: [string, "null"] }
+                  soroban_contract_id: { type: [string, "null"] }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /payment-orders/{id}/events:
+    get:
+      tags: [Payment Orders]
+      summary: Eventos da ordem
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PaymentOrderEvent" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /payment-orders/{id}/cancel:
+    post:
+      tags: [Payment Orders]
+      summary: Cancela cobrança ACTIVE
+      security: [ { AdminJWT: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentOrder" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /payment-orders/{id}/webhooks/resend:
+    post:
+      tags: [Payment Orders]
+      summary: Reenvia webhook
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdParam" } ]
+      responses:
+        "202": { description: Reenvio enfileirado }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /public/payment-orders/{slug}:
+    get:
+      tags: [Public]
+      summary: Dados públicos da cobrança para pagamento
+      security: []
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPaymentOrder" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    AdminJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string }
+  responses:
+    NotFound:
+      description: Não encontrado
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: Conflito de estado
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: Não autenticado
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: Sem permissão
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    UnprocessableEntity:
+      description: Falha de validação de domínio
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+            details: { type: object, additionalProperties: true }
+          required: [code, message]
+      required: [error]
+    OrderStatus:
+      type: string
+      enum: [CREATED, ACTIVE, PAID, EXPIRED, CANCELLED, FAILED]
+    TenantStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    TenantWallet:
+      type: object
+      properties:
+        stellar_wallet_public_key:
+          type: string
+          pattern: "^G[A-Z2-7]{55}$"
+        stellar_network:
+          type: string
+          enum: [TESTNET]
+      required: [stellar_wallet_public_key, stellar_network]
+    CreateTenantRequest:
+      type: object
+      properties:
+        name: { type: string }
+        legal_name: { type: string }
+        document_type: { type: string, enum: [CNPJ, CPF, OTHER] }
+        document_number: { type: string }
+        admin_email: { type: string, format: email }
+        default_asset_code: { type: string }
+        default_asset_issuer: { type: [string, "null"] }
+        stellar_wallet_public_key: { type: [string, "null"], pattern: "^G[A-Z2-7]{55}$" }
+        stellar_network: { type: string, enum: [TESTNET], default: TESTNET }
+      required: [name, legal_name, document_type, document_number, admin_email, default_asset_code]
+    Tenant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        legal_name: { type: string }
+        document_type: { type: string, enum: [CNPJ, CPF, OTHER] }
+        document_number: { type: string }
+        admin_email: { type: string }
+        stellar_wallet_public_key: { type: [string, "null"] }
+        stellar_network: { type: string, enum: [TESTNET] }
+        default_asset_code: { type: string }
+        default_asset_issuer: { type: [string, "null"] }
+        status: { $ref: "#/components/schemas/TenantStatus" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreatePaymentOrderRequest:
+      type: object
+      description: >
+        Não inclui wallet destino (proibido — 422 WALLET_NOT_ALLOWED_ON_ORDER). Informe
+        tenant_id OU tenant_document (ou slug) para resolver o tenant.
+      properties:
+        source: { type: string, example: ERP }
+        tenant_id: { type: string }
+        tenant_slug: { type: string }
+        tenant_document: { type: string }
+        amount: { type: string, example: "150.00" }
+        asset_code: { type: [string, "null"] }
+        asset_issuer: { type: [string, "null"] }
+        due_date: { type: [string, "null"], format: date }
+        description: { type: [string, "null"] }
+        external_id: { type: [string, "null"] }
+        callback_url: { type: [string, "null"], format: uri }
+        metadata: { type: object, additionalProperties: true }
+      required: [amount]
+    PaymentOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        external_id: { type: [string, "null"] }
+        amount: { type: string }
+        asset_code: { type: string }
+        asset_issuer: { type: [string, "null"] }
+        receiver_wallet_public_key: { type: string }
+        canonical_payload_hash: { type: string }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        source: { type: string }
+        due_date: { type: [string, "null"], format: date }
+        description: { type: [string, "null"] }
+        public_payment_slug: { type: string }
+        public_payment_url: { type: string }
+        soroban_contract_id: { type: [string, "null"] }
+        blockchain_transaction_hash: { type: [string, "null"] }
+        metadata: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        paid_at: { type: [string, "null"], format: date-time }
+    PublicPaymentOrder:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        network: { type: string, enum: [TESTNET] }
+        receiver:
+          type: object
+          properties:
+            name: { type: string }
+            document: { type: [string, "null"] }
+            wallet_public_key: { type: string }
+        amount: { type: string }
+        asset_code: { type: string }
+        asset_issuer: { type: [string, "null"] }
+        due_date: { type: [string, "null"], format: date }
+        order_id: { type: string }
+        canonical_payload_hash: { type: string }
+        soroban_contract_id: { type: [string, "null"] }
+        explorer_url: { type: [string, "null"] }
+    PaymentOrderEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        payment_order_id: { type: string, format: uuid }
+        event_type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
