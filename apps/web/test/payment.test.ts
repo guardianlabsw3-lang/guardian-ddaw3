@@ -22,7 +22,7 @@ describe('buildPayTransaction', () => {
     expect(tx.operations[0]?.type).toBe('invokeHostFunction');
   });
 
-  it('is deterministic for identical inputs (same XDR)', () => {
+  it('encodes a deterministic pay operation for identical inputs', () => {
     const params = {
       contractId,
       payer,
@@ -31,6 +31,10 @@ describe('buildPayTransaction', () => {
       amount: '10.0000000',
       asset: { code: 'XLM', issuer: null },
     } as const;
-    expect(buildPayTransaction(params).toXDR()).toBe(buildPayTransaction(params).toXDR());
+    // Compare the operation XDR (carries order ref / payer / amount / asset), not the whole
+    // transaction — the latter embeds wall-clock time bounds and is intentionally not stable.
+    const opXdr = (p: typeof params) =>
+      buildPayTransaction(p).toEnvelope().v1().tx().operations()[0]?.toXDR('base64');
+    expect(opXdr(params)).toBe(opXdr(params));
   });
 });
