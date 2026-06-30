@@ -2,8 +2,23 @@
   "name": "@payorder/worker",
   "version": "0.0.0",
   "private": true,
-  "description": "PayOrder W3 Guardian — background worker (BullMQ). Placeholder; implemented from TASK-016 onward.",
+  "type": "module",
+  "description": "PayOrder W3 Guardian — background worker (BullMQ): on-chain registration, status sync and expiration (TASK-016..017).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
   "dependencies": {
-    "@payorder/shared": "*"
+    "@payorder/api": "*",
+    "@payorder/shared": "*",
+    "bullmq": "^5.79.2",
+    "pino": "^9.14.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
   }
 }

@@ -26,11 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # `@payorder/shared` is consumed across package boundaries via its built `dist`
-      # (its package.json `main`/`types` point there), so it must be built before the
-      # typecheck/test steps can resolve `@payorder/shared`.
+      # Cross-package consumers resolve workspace deps via their built `dist` (package.json
+      # `main`/`types` point there). `@payorder/shared` is consumed by every package, and
+      # `@payorder/api` is consumed by `@payorder/worker`, so both must be built before the
+      # typecheck/test steps can resolve them.
       - name: Build shared packages
-        run: npm run build --workspace @payorder/shared
+        run: |
+          npm run build --workspace @payorder/shared
+          npm run build --workspace @payorder/api
 
       - name: Format check
         run: npm run format:check

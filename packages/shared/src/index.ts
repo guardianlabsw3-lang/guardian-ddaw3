@@ -5,3 +5,4 @@
 export * from './stellar/index.js';
 export * from './schemas/index.js';
 export * from './canonical/index.js';
+export * from './onchain/index.js';
