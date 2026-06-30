@@ -83,7 +83,10 @@ export class PayOrderApi {
       headers: this.headers(),
       body: JSON.stringify({ email, password }),
     });
-    return parse<{ token: string }>(res);
+    // The API responds with the OpenAPI `LoginResponse` shape (`access_token`); map it to the
+    // `token` the admin panel stores and sends as the Bearer credential.
+    const body = await parse<{ access_token: string }>(res);
+    return { token: body.access_token };
   }
 
   async listTenants(): Promise<Tenant[]> {
