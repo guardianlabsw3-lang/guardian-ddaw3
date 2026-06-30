@@ -87,4 +87,32 @@ describe('loadConfig', () => {
   it('rejects a too-short JWT secret', () => {
     expect(() => loadConfig({ ...BASE, JWT_SECRET: 'short' })).toThrow(EnvValidationError);
   });
+
+  it('accepts a valid SOROBAN_ADMIN_SECRET ("S...") seed', () => {
+    const config = loadConfig({
+      ...BASE,
+      SOROBAN_ADMIN_SECRET: 'SCR7435JDZWJ7C3PKNAAAKOXMBLGEQNC5FISQINOWP2BK36YZ3LLAK7Z',
+    });
+    expect(config.stellar.sorobanAdminSecret).toBe(
+      'SCR7435JDZWJ7C3PKNAAAKOXMBLGEQNC5FISQINOWP2BK36YZ3LLAK7Z',
+    );
+  });
+
+  it('rejects a public key ("G...") set as SOROBAN_ADMIN_SECRET (worker crash root cause)', () => {
+    try {
+      loadConfig({
+        ...BASE,
+        // A public key where a secret seed is expected — the misconfiguration that
+        // surfaced as "invalid version byte. expected 144, got 48" at worker startup.
+        SOROBAN_ADMIN_SECRET: 'GCR7435JDZWJ7C3PKNAAAKOXMBLGEQNC5FISQINOWP2BK36YZ3LLBOMG',
+      });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(EnvValidationError);
+      const issue = (err as EnvValidationError).issues.find(
+        (i) => i.path === 'SOROBAN_ADMIN_SECRET',
+      );
+      expect(issue?.message).toMatch(/secret seed/);
+    }
+  });
 });

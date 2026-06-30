@@ -13,6 +13,9 @@
 /** Version byte for an ed25519 account public key (6 << 3). Renders the "G" prefix. */
 export const ED25519_PUBLIC_KEY_VERSION_BYTE = 0x30;
 
+/** Version byte for an ed25519 secret seed (18 << 3). Renders the "S" prefix. */
+export const ED25519_SECRET_SEED_VERSION_BYTE = 0x90;
+
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 const BASE32_LOOKUP: Record<string, number> = (() => {
@@ -83,6 +86,34 @@ export function isValidEd25519PublicKey(key: unknown): key is string {
   }
 
   if (decoded[0] !== ED25519_PUBLIC_KEY_VERSION_BYTE) {
+    return false;
+  }
+
+  const payload = decoded.subarray(0, 33);
+  const expected = crc16(payload);
+  const actual = decoded[33]! | (decoded[34]! << 8); // little-endian
+  return expected === actual;
+}
+
+/**
+ * Validate an ed25519 secret seed ("S..."): correct length, version byte, alphabet
+ * and CRC16 checksum. Same 35-byte StrKey layout as a public key, only the prefix
+ * and version byte differ. Useful to fail fast on a misconfigured admin secret
+ * (e.g. a "G..." public key pasted in place of a "S..." seed) before the Stellar
+ * SDK throws a cryptic "invalid version byte" deep inside `Keypair.fromSecret`.
+ */
+export function isValidEd25519SecretSeed(seed: unknown): seed is string {
+  if (typeof seed !== 'string' || seed.length !== 56 || seed[0] !== 'S') {
+    return false;
+  }
+
+  const decoded = base32Decode(seed);
+  // 1 version byte + 32 seed bytes + 2 checksum bytes
+  if (decoded === null || decoded.length !== 35) {
+    return false;
+  }
+
+  if (decoded[0] !== ED25519_SECRET_SEED_VERSION_BYTE) {
     return false;
   }
 

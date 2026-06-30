@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { StellarNetworkSchema, type StellarNetwork } from '@payorder/shared';
+import {
+  StellarNetworkSchema,
+  isValidEd25519SecretSeed,
+  type StellarNetwork,
+} from '@payorder/shared';
 
 /**
  * Environment loading and validation (TASK-011). The application must **not** boot with an
@@ -67,7 +71,15 @@ export const EnvSchema = z
     STELLAR_FRIENDBOT_URL: z.string().url().default('https://friendbot.stellar.org'),
 
     SOROBAN_CONTRACT_ID: z.string().trim().min(1).optional(),
-    SOROBAN_ADMIN_SECRET: z.string().trim().min(1).optional(),
+    SOROBAN_ADMIN_SECRET: z
+      .string()
+      .trim()
+      .min(1)
+      .refine(isValidEd25519SecretSeed, {
+        message:
+          'SOROBAN_ADMIN_SECRET must be a valid Stellar ed25519 secret seed ("S...", 56 chars) — not a public key ("G...")',
+      })
+      .optional(),
 
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
     REGISTER_ON_CHAIN_SYNC: BooleanFromString.default('false'),
