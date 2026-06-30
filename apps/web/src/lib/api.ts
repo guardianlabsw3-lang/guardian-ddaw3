@@ -91,8 +91,8 @@ export class PayOrderApi {
 
   async listTenants(): Promise<Tenant[]> {
     const res = await fetch(this.url('/tenants'), { headers: this.headers() });
-    const body = await parse<Tenant[] | { data: Tenant[] }>(res);
-    return Array.isArray(body) ? body : body.data;
+    const body = await parse<Tenant[] | { items: Tenant[] }>(res);
+    return Array.isArray(body) ? body : body.items;
   }
 
   async getTenant(id: string): Promise<Tenant> {
@@ -117,8 +117,8 @@ export class PayOrderApi {
     const res = await fetch(this.url(`/payment-orders${qs ? `?${qs}` : ''}`), {
       headers: this.headers(),
     });
-    const body = await parse<PaymentOrder[] | { data: PaymentOrder[] }>(res);
-    return Array.isArray(body) ? body : body.data;
+    const body = await parse<PaymentOrder[] | { items: PaymentOrder[] }>(res);
+    return Array.isArray(body) ? body : body.items;
   }
 
   async getOrder(id: string): Promise<PaymentOrder> {
@@ -128,8 +128,8 @@ export class PayOrderApi {
 
   async getOrderEvents(id: string): Promise<PaymentOrderEvent[]> {
     const res = await fetch(this.url(`/payment-orders/${id}/events`), { headers: this.headers() });
-    const body = await parse<PaymentOrderEvent[] | { data: PaymentOrderEvent[] }>(res);
-    return Array.isArray(body) ? body : body.data;
+    const body = await parse<PaymentOrderEvent[] | { items: PaymentOrderEvent[] }>(res);
+    return Array.isArray(body) ? body : body.items;
   }
 
   /**
