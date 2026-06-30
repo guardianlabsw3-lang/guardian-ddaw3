@@ -1,0 +1,30 @@
+# Keep the Docker build context small and reproducible: never ship host installs or build
+# output (the image rebuilds them), VCS metadata, local env files or test artifacts.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+
+.git
+.github
+.gitignore
+
+# Rust / Soroban contract build output (not part of the Node images)
+contracts/**/target
+contracts/**/test_snapshots
+
+# Local env files (never bake secrets into an image — only *.example are tracked anyway)
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# Editor / OS noise
+.idea
+.vscode
+**/.DS_Store
+
+# Docs are not needed inside images
+docs

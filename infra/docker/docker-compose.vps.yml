@@ -1,0 +1,135 @@
+# PayOrder W3 Guardian — VPS deployment behind an EXISTING Traefik (TASK-028 / spec 13).
+#
+# Coexistence rules (must not break the other product already on this VPS):
+#   - Isolated project name (`payorder`) + `payorder_*` container/volume names.
+#   - `api`/`web` join the **external** Traefik network; routing is via prefixed labels only —
+#     no global middlewares/entrypoints are redefined.
+#   - NO published `ports:` on Traefik-routed services; postgres/redis/worker stay on a private
+#     internal network, never reachable from the host or Traefik.
+#   - Long-running services use `restart: unless-stopped`; `migrate` is one-shot.
+#
+# Validate before deploying:
+#   docker compose -p payorder -f infra/docker/docker-compose.vps.yml --env-file infra/docker/.env.vps config
+# Deploy:
+#   docker compose -p payorder -f infra/docker/docker-compose.vps.yml pull
+#   docker compose -p payorder -f infra/docker/docker-compose.vps.yml run --rm migrate
+#   docker compose -p payorder -f infra/docker/docker-compose.vps.yml up -d
+name: payorder
+
+services:
+  api:
+    image: ${REGISTRY}/payorder-api:${IMAGE_TAG}
+    container_name: payorder_api
+    env_file: ['.env.vps']
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [traefik_proxy, payorder_internal]
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=${TRAEFIK_NETWORK}'
+      - 'traefik.http.routers.payorder-api.rule=Host(`${API_DOMAIN}`)'
+      - 'traefik.http.routers.payorder-api.entrypoints=websecure'
+      - 'traefik.http.routers.payorder-api.tls=true'
+      - 'traefik.http.routers.payorder-api.tls.certresolver=${CERT_RESOLVER}'
+      - 'traefik.http.services.payorder-api.loadbalancer.server.port=3000'
+
+  worker:
+    image: ${REGISTRY}/payorder-api:${IMAGE_TAG}
+    container_name: payorder_worker
+    command: ['node', 'apps/worker/dist/index.js']
+    env_file: ['.env.vps']
+    restart: unless-stopped
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [payorder_internal] # no Traefik; never exposed
+    logging: *default-logging
+
+  web:
+    image: ${REGISTRY}/payorder-web:${IMAGE_TAG}
+    container_name: payorder_web
+    env_file: ['.env.vps']
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_started }
+    networks: [traefik_proxy]
+    logging: *default-logging
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=${TRAEFIK_NETWORK}'
+      - 'traefik.http.routers.payorder-web.rule=Host(`${WEB_DOMAIN}`)'
+      - 'traefik.http.routers.payorder-web.entrypoints=websecure'
+      - 'traefik.http.routers.payorder-web.tls=true'
+      - 'traefik.http.routers.payorder-web.tls.certresolver=${CERT_RESOLVER}'
+      - 'traefik.http.services.payorder-web.loadbalancer.server.port=3000'
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: payorder_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: ['payorder_pg:/var/lib/postgresql/data']
+    restart: unless-stopped
+    networks: [payorder_internal] # never exposed to Traefik/host
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: payorder_redis
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes: ['payorder_redis:/data']
+    restart: unless-stopped
+    networks: [payorder_internal]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  # One-shot: apply migrations before api/worker start. Run explicitly or via depends_on.
+  migrate:
+    image: ${REGISTRY}/payorder-api:${IMAGE_TAG}
+    container_name: payorder_migrate
+    command: ['node', 'apps/api/dist/infrastructure/persistence/migrate.js']
+    env_file: ['.env.vps']
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [payorder_internal]
+    restart: 'no'
+    logging: *default-logging
+
+volumes:
+  payorder_pg:
+  payorder_redis:
+
+networks:
+  # Reuse the existing Traefik network (must already exist on the VPS).
+  traefik_proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK}
+  # Private network for db/redis/worker ↔ api; not attached to Traefik.
+  payorder_internal:
+    driver: bridge
