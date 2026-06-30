@@ -49,6 +49,28 @@ describe('PayOrderApi.getPublicOrder', () => {
   });
 });
 
+describe('PayOrderApi.login', () => {
+  it('maps the API access_token to the token the panel stores', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: 'jwt-abc',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        admin: { id: 'a1', email: 'admin@test', role: 'admin' },
+      }),
+    );
+
+    const api = new PayOrderApi('https://api.test');
+    const result = await api.login('admin@test', 'secret');
+
+    expect(result).toEqual({ token: 'jwt-abc' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/auth/login');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ email: 'admin@test', password: 'secret' });
+  });
+});
+
 describe('PayOrderApi.createOrder', () => {
   it('sends the Idempotency-Key header and never includes wallet fields (RN-02)', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'order-1' }, 202));
