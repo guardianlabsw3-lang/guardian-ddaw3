@@ -50,6 +50,20 @@ services:
     restart: 'no'
     networks: [payorder]
 
+  # One-shot: seed the admin user (+ a demo tenant with a wallet) so the panel login works on
+  # a fresh stack — without this, the first `POST /api/auth/login` returns UNAUTHENTICATED
+  # because `admin_users` is empty. Runs after migrations and is idempotent (safe to re-run on
+  # every `make up`). Local only: the VPS stack never auto-creates a default admin.
+  seed:
+    image: payorder-api:local
+    command: ['node', 'apps/api/dist/infrastructure/persistence/seed.js']
+    env_file: ['.env.local']
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: 'no'
+    networks: [payorder]
+
   api:
     build:
       context: ../../
@@ -61,6 +75,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
       interval: 10s
