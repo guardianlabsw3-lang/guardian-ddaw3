@@ -29,3 +29,19 @@ export function getConfig(): WebConfig {
     ),
   };
 }
+
+/**
+ * API base URL to use for **server-side** (SSR / route handler) requests.
+ *
+ * `NEXT_PUBLIC_API_BASE_URL` is the browser-facing URL, which inside a container is often NOT
+ * reachable from the server process itself: locally `localhost:<port>` resolves to the web
+ * container (not the API), and behind a reverse proxy the public domain may not hairpin back in.
+ * That made SSR of the public payment page always fail while a client-side retry succeeded.
+ *
+ * `API_INTERNAL_BASE_URL` (a non-`NEXT_PUBLIC_`, runtime-only var) lets the server reach the API
+ * over the internal network (e.g. `http://api:3000`). Falls back to the public URL when unset.
+ */
+export function getServerApiBaseUrl(): string {
+  const internal = process.env.API_INTERNAL_BASE_URL;
+  return internal ? clean(internal) : getConfig().apiBaseUrl;
+}

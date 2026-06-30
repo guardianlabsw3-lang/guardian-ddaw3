@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getConfig } from '@/src/config';
 import { PayOrderApi } from '@/src/lib/api';
 import type { PublicPaymentOrder } from '@/src/lib/types';
@@ -29,6 +29,9 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   const config = getConfig();
   const [order, setOrder] = useState<PublicPaymentOrder | null>(initialOrder);
   const [loadError, setLoadError] = useState<string | null>(initialError);
+  // Auto-load when the server-rendered order is missing (e.g. the API was unreachable during
+  // SSR): we retry from the browser on mount instead of forcing the user to click "Atualizar".
+  const [loading, setLoading] = useState(!initialOrder);
   const [wallet, setWallet] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -36,14 +39,24 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   const [txHash, setTxHash] = useState<string | null>(null);
 
   async function refresh() {
+    setLoading(true);
     setLoadError(null);
     try {
       const fresh = await new PayOrderApi(config.apiBaseUrl).getPublicOrder(slug);
       setOrder(fresh);
     } catch {
-      setLoadError('Não foi possível atualizar a cobrança.');
+      setLoadError('Não foi possível carregar a cobrança. Tente atualizar.');
+    } finally {
+      setLoading(false);
     }
   }
+
+  // Run once on mount: if SSR could not provide the order, retry the load from the browser.
+  useEffect(() => {
+    if (!initialOrder) {
+      void refresh();
+    }
+  }, []);
 
   async function onConnect() {
     setConnecting(true);
@@ -87,10 +100,18 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
         <TestnetBanner />
         <div className="card">
           <h1>Cobrança</h1>
-          <div className="alert alert-error">{loadError ?? 'Cobrança não encontrada.'}</div>
-          <button className="btn" onClick={refresh}>
-            Atualizar
-          </button>
+          {loading ? (
+            <p className="muted">
+              <span className="spinner" /> Carregando cobrança…
+            </p>
+          ) : (
+            <>
+              <div className="alert alert-error">{loadError ?? 'Cobrança não encontrada.'}</div>
+              <button className="btn" onClick={refresh} disabled={loading}>
+                Atualizar
+              </button>
+            </>
+          )}
         </div>
       </main>
     );
