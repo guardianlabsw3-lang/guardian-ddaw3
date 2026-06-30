@@ -194,15 +194,25 @@ export class PaymentOrder {
     });
   }
 
-  /** `ACTIVE → PAID` — valid on-chain payment. Idempotent when already paid (RN-07). */
-  markPaid(txHash: string, paidAt: Date, now: Date): void {
+  /**
+   * `ACTIVE → PAID` — valid on-chain payment. Idempotent when already paid (RN-07). The tx
+   * hash is nullable because reconciliation via `get_order` confirms the `PAID` state without
+   * necessarily carrying the payer's transaction hash.
+   */
+  markPaid(txHash: string | null, paidAt: Date, now: Date): void {
     if (this._status === 'PAID') {
       return;
     }
     this.transition('PAID', now);
-    this._blockchainTxHash = txHash;
+    if (txHash !== null) {
+      this._blockchainTxHash = txHash;
+    }
     this._paidAt = paidAt;
-    this.record('paid', now, { orderId: this._id, blockchainTxHash: txHash, paidAt });
+    this.record('paid', now, {
+      orderId: this._id,
+      blockchainTxHash: this._blockchainTxHash,
+      paidAt,
+    });
   }
 
   /** `ACTIVE → CANCELLED` — authorized cancellation only (RN-08). */

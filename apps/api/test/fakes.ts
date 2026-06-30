@@ -3,11 +3,17 @@ import type { OrderStatus, PaymentOrder } from '../src/domain/payment-order/inde
 import type {
   Clock,
   IdGenerator,
+  LogContext,
+  Logger,
+  OnChainOrder,
   Page,
   PaymentOrderEventRecord,
   PaymentOrderListFilter,
   PaymentOrderRepository,
+  RegisterOrderParams,
+  RegisterOrderResult,
   SlugGenerator,
+  SorobanContractPort,
   TenantListFilter,
   TenantRepository,
 } from '../src/application/ports/index.js';
@@ -138,5 +144,73 @@ export class InMemoryPaymentOrderRepository implements PaymentOrderRepository {
     if (filter.status) items = items.filter((o) => o.status === filter.status);
     if (filter.externalId) items = items.filter((o) => o.externalId === filter.externalId);
     return { items, total: items.length };
+  }
+}
+
+/** Captures log records so tests can assert on warnings/errors (e.g. divergences). */
+export interface LogRecord {
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  context?: LogContext;
+}
+
+export class RecordingLogger implements Logger {
+  readonly records: LogRecord[] = [];
+  debug(message: string, context?: LogContext): void {
+    this.records.push({ level: 'debug', message, context });
+  }
+  info(message: string, context?: LogContext): void {
+    this.records.push({ level: 'info', message, context });
+  }
+  warn(message: string, context?: LogContext): void {
+    this.records.push({ level: 'warn', message, context });
+  }
+  error(message: string, context?: LogContext): void {
+    this.records.push({ level: 'error', message, context });
+  }
+  byLevel(level: LogRecord['level']): LogRecord[] {
+    return this.records.filter((r) => r.level === level);
+  }
+}
+
+/**
+ * Mock `SorobanContractPort`. `registerOrder` records calls and returns a deterministic
+ * result (or throws a queued error to exercise retries/idempotency). `getOrder` returns a
+ * scripted on-chain view keyed by off-chain order id.
+ */
+export class MockSorobanContract implements SorobanContractPort {
+  readonly contractId: string;
+  readonly registered: RegisterOrderParams[] = [];
+  private readonly onChain = new Map<string, OnChainOrder>();
+  private registerError: Error | null = null;
+  private nextTxHash = 'TX_REGISTER_1';
+
+  constructor(contractId = 'CA_TEST_CONTRACT') {
+    this.contractId = contractId;
+  }
+
+  /** Queue an error to be thrown by the next `registerOrder` call. */
+  failNextRegister(error: Error): void {
+    this.registerError = error;
+  }
+
+  /** Script the on-chain state returned by `getOrder` for an order id. */
+  setOnChain(orderId: string, order: OnChainOrder): void {
+    this.onChain.set(orderId, order);
+  }
+
+  async registerOrder(params: RegisterOrderParams): Promise<RegisterOrderResult> {
+    if (this.registerError) {
+      const error = this.registerError;
+      this.registerError = null;
+      throw error;
+    }
+    this.registered.push(params);
+    this.onChain.set(params.orderId, { status: 'ACTIVE', payer: null, paidAt: null });
+    return { contractId: this.contractId, txHash: this.nextTxHash, alreadyRegistered: false };
+  }
+
+  async getOrder(orderId: string): Promise<OnChainOrder | null> {
+    return this.onChain.get(orderId) ?? null;
   }
 }

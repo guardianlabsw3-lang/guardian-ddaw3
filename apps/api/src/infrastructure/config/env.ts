@@ -103,6 +103,8 @@ export interface AppConfig {
     readonly sorobanRpcUrl: string;
     readonly friendbotUrl: string;
     readonly sorobanContractId: string | null;
+    /** Admin secret seed (`S...`) authorizing `register_order`; null when unset (api). */
+    readonly sorobanAdminSecret: string | null;
   };
   readonly logLevel: Env['LOG_LEVEL'];
   readonly registerOnChainSync: boolean;
@@ -136,6 +138,7 @@ export function toAppConfig(env: Env): AppConfig {
       sorobanRpcUrl: env.STELLAR_SOROBAN_RPC_URL,
       friendbotUrl: env.STELLAR_FRIENDBOT_URL,
       sorobanContractId: env.SOROBAN_CONTRACT_ID ?? null,
+      sorobanAdminSecret: env.SOROBAN_ADMIN_SECRET ?? null,
     },
     logLevel: env.LOG_LEVEL,
     registerOnChainSync: env.REGISTER_ON_CHAIN_SYNC,
