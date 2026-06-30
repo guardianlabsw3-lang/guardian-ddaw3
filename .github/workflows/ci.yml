@@ -37,3 +37,40 @@ jobs:
 
       - name: Test
         run: npm test
+
+  contract:
+    name: Soroban contract · fmt · clippy · test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts/payorder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32v1-none
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/payorder/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('contracts/payorder/Cargo.lock') }}
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+      - name: Build WASM
+        run: cargo build --target wasm32v1-none --release
