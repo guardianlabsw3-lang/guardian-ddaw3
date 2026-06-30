@@ -105,6 +105,10 @@ services:
         NEXT_PUBLIC_SOROBAN_RPC_URL: ${NEXT_PUBLIC_SOROBAN_RPC_URL:-https://soroban-testnet.stellar.org}
         NEXT_PUBLIC_EXPLORER_BASE_URL: ${NEXT_PUBLIC_EXPLORER_BASE_URL:-https://stellar.expert/explorer/testnet}
     image: payorder-web:local
+    # Runtime (non-baked) env: SSR must reach the API by service name, since inside this container
+    # `localhost:3000` is the web container itself, not the API.
+    environment:
+      API_INTERNAL_BASE_URL: ${API_INTERNAL_BASE_URL:-http://api:3000}
     ports: ['3001:3000']
     depends_on:
       api: { condition: service_started }

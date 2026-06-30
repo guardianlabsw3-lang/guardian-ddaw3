@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation';
 import { ApiError, PayOrderApi } from '@/src/lib/api';
 import type { PublicPaymentOrder } from '@/src/lib/types';
-import { getConfig } from '@/src/config';
+import { getServerApiBaseUrl } from '@/src/config';
 import { PaymentClient } from './PaymentClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PublicPaymentPage({ params }: { params: { slug: string } }) {
-  const api = new PayOrderApi(getConfig().apiBaseUrl);
+  const api = new PayOrderApi(getServerApiBaseUrl());
 
   let order: PublicPaymentOrder | null = null;
   let initialError: string | null = null;
