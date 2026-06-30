@@ -1,0 +1,9 @@
+{
+  "name": "@payorder/worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PayOrder W3 Guardian — background worker (BullMQ). Placeholder; implemented from TASK-016 onward.",
+  "dependencies": {
+    "@payorder/shared": "*"
+  }
+}

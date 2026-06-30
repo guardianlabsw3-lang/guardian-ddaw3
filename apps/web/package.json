@@ -1,0 +1,9 @@
+{
+  "name": "@payorder/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PayOrder W3 Guardian — frontend (Next.js). Placeholder; implemented from TASK-025 onward.",
+  "dependencies": {
+    "@payorder/shared": "*"
+  }
+}
