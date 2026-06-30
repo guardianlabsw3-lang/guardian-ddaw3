@@ -5,13 +5,13 @@ Empacotamento e orquestração local e em VPS (com Traefik existente). Specs det
 - VPS/Traefik: [`docs/specs/payorder-w3-guardian/13-docker-vps-traefik.md`](../../docs/specs/payorder-w3-guardian/13-docker-vps-traefik.md)
 - Deploy: [`docs/specs/payorder-w3-guardian/14-deployment.md`](../../docs/specs/payorder-w3-guardian/14-deployment.md)
 
-## Arquivos previstos
+## Arquivos
 
 ```text
 infra/
   docker/
-    api.Dockerfile            # imagem da API/worker (Node/NestJS)
-    web.Dockerfile            # imagem do frontend (Next.js)
+    api.Dockerfile            # imagem Node única: api · worker · migrate · seed (por comando)
+    web.Dockerfile            # imagem do frontend (Next.js, output standalone)
     docker-compose.local.yml  # ambiente local completo
     docker-compose.vps.yml    # deploy na VPS atrás do Traefik existente
     .env.local.example        # variáveis locais
@@ -20,8 +20,18 @@ infra/
     README.md                 # como integrar com o Traefik existente (labels, rede externa)
   scripts/
     deploy-contract.sh        # build + deploy do contrato Soroban (Testnet)
-    deploy.sh                 # deploy da stack na VPS
+    deploy.sh                 # deploy da stack na VPS (pull → migrate → up → smoke)
 ```
+
+> **Uma imagem Node, vários comandos.** `api.Dockerfile` empacota api, worker, migrate e seed.
+> O comando selecionado decide o papel:
+> `node apps/api/dist/main.js` (api, default) · `node apps/worker/dist/index.js` (worker) ·
+> `node apps/api/dist/infrastructure/persistence/migrate.js` (migrate) ·
+> `node apps/api/dist/infrastructure/persistence/seed.js` (seed).
+>
+> **Frontend.** As variáveis `NEXT_PUBLIC_*` são *inlined* no build do Next, então são passadas
+> como **build args** (por ambiente): localmente via `docker-compose.local.yml`, no release via
+> CI. Não são lidas em runtime.
 
 ## Local (resumo)
 

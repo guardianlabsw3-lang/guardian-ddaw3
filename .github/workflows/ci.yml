@@ -47,6 +47,29 @@ jobs:
       - name: Test
         run: npm test
 
+  compose:
+    name: Docker Compose · config validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The compose files must parse with the committed example envs so a broken local/VPS
+      # stack is caught on PRs, not at deploy time. `config -q` interpolates + validates only;
+      # it neither builds images nor contacts the daemon for resources.
+      - name: Validate local compose
+        run: |
+          cp infra/docker/.env.local.example infra/docker/.env.local
+          docker compose --env-file infra/docker/.env.local \
+            -f infra/docker/docker-compose.local.yml config -q
+          echo "local compose OK"
+
+      - name: Validate VPS compose
+        run: |
+          docker compose -p payorder -f infra/docker/docker-compose.vps.yml \
+            --env-file infra/docker/.env.vps.example config -q
+          echo "vps compose OK"
+
   contract:
     name: Soroban contract · fmt · clippy · test
     runs-on: ubuntu-latest

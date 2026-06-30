@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/infrastructure/persistence/migrate.ts"
+    "db:migrate": "tsx src/infrastructure/persistence/migrate.ts",
+    "db:seed": "tsx src/infrastructure/persistence/seed.ts"
   },
   "dependencies": {
     "@payorder/shared": "*",

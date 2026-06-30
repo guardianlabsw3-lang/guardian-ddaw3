@@ -1,0 +1,103 @@
+name: Release
+
+# Build and push the api + web images on a merge to the default branch (or a version tag), then
+# optionally deploy to the VPS behind the existing Traefik (TASK-029 / spec 14 §3).
+#
+# PR validation (lint, typecheck, tests, contract) lives in ci.yml; this pipeline only runs once
+# code has landed, so it assumes those gates already passed.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build & push ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - image: payorder-api
+            dockerfile: infra/docker/api.Dockerfile
+            build_args: ''
+          - image: payorder-web
+            dockerfile: infra/docker/web.Dockerfile
+            build_args: |
+              NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+              NEXT_PUBLIC_HORIZON_URL=${{ vars.NEXT_PUBLIC_HORIZON_URL }}
+              NEXT_PUBLIC_SOROBAN_RPC_URL=${{ vars.NEXT_PUBLIC_SOROBAN_RPC_URL }}
+              NEXT_PUBLIC_EXPLORER_BASE_URL=${{ vars.NEXT_PUBLIC_EXPLORER_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lowercase owner
+        id: owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ matrix.image }}
+          tags: |
+            type=sha,format=long
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to VPS
+    # Only on the default branch, and only when the repo has opted in (set repo variable
+    # DEPLOY_ENABLED=true and configure the VPS_* secrets below). Keeps the pipeline green for
+    # forks / unconfigured repos.
+    if: ${{ github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: vps # add required reviewers here for a manual approval gate
+    steps:
+      - name: Deploy over SSH (migrate → up → smoke)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # VPS_PATH is the checked-out repo on the VPS; .env.vps lives in infra/docker/ there.
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.VPS_PATH }}"
+            git fetch --all --prune
+            git checkout "${{ github.sha }}"
+            IMAGE_TAG="sha-${{ github.sha }}" infra/scripts/deploy.sh
