@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { isValidEd25519PublicKey, crc16, base32Decode } from './strkey.js';
+import {
+  isValidEd25519PublicKey,
+  isValidEd25519SecretSeed,
+  crc16,
+  base32Decode,
+} from './strkey.js';
 import { StellarPublicKeySchema, isValidStellarPublicKey } from './public-key.js';
 import { StellarAccountSchema } from './account.js';
 import { StellarNetworkSchema, isSupportedNetwork, TESTNET } from './network.js';
@@ -45,6 +50,36 @@ describe('strkey / StellarPublicKey', () => {
   it('crc16 is deterministic', () => {
     const bytes = Uint8Array.from([0x30, 0x01, 0x02, 0x03]);
     expect(crc16(bytes)).toBe(crc16(bytes));
+  });
+});
+
+describe('strkey / ed25519 secret seed', () => {
+  // Real, checksum-valid ed25519 secret seeds with their matching public keys.
+  const VALID_SEEDS = [
+    'SCR7435JDZWJ7C3PKNAAAKOXMBLGEQNC5FISQINOWP2BK36YZ3LLAK7Z',
+    'SC6DO7R2CHUHWPUPP2LR6IYHA5CGH5MT6BCBFJP3YKPX3ZUQLR4GP2AL',
+  ];
+
+  it('accepts real, checksum-valid secret seeds', () => {
+    for (const seed of VALID_SEEDS) {
+      expect(isValidEd25519SecretSeed(seed)).toBe(true);
+    }
+  });
+
+  it('rejects a public key supplied in place of a secret seed', () => {
+    // The exact misconfiguration that crashed the worker (version byte 144 vs 48).
+    for (const key of VALID_KEYS) {
+      expect(isValidEd25519SecretSeed(key)).toBe(false);
+    }
+  });
+
+  it('rejects a corrupted checksum, wrong length and non-string input', () => {
+    const seed = VALID_SEEDS[0]!;
+    const corrupted = seed.slice(0, -1) + (seed.endsWith('Z') ? 'A' : 'Z');
+    expect(isValidEd25519SecretSeed(corrupted)).toBe(false);
+    expect(isValidEd25519SecretSeed('SABC')).toBe(false);
+    expect(isValidEd25519SecretSeed('')).toBe(false);
+    expect(isValidEd25519SecretSeed(123 as unknown)).toBe(false);
   });
 });
 
