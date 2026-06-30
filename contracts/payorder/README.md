@@ -26,7 +26,7 @@ On-chain a ordem nasce `ACTIVE` via `register_order` (o estado `CREATED` é off-
 | Método | Autoriza | Efeito |
 |--------|----------|--------|
 | `initialize(admin)` | deployer | Define a autoridade administrativa. |
-| `register_order(order_id, data_hash, tenant_ref, receiver, amount, asset, due_ledger)` | admin | Cria ordem `ACTIVE`. |
+| `register_order(order_id, data_hash, tenant_ref, receiver, token, amount, asset, due_ledger)` | admin | Cria ordem `ACTIVE`. |
 | `get_order(order_id)` | público | Consulta a ordem. |
 | `pay(order_id, payer, amount, asset)` | payer | Paga e marca `PAID`. |
 | `cancel_order(order_id)` | admin | `ACTIVE → CANCELLED`. |
@@ -38,26 +38,71 @@ On-chain a ordem nasce `ACTIVE` via `register_order` (o estado `CREATED` é off-
 Não há método para alterar `receiver`, `amount`, `asset` ou `data_hash` após
 `register_order` — garantia de integridade por design.
 
+## Resolução de asset (`token`)
+
+O `AssetInfo` (`code` + `issuer`) identifica o asset para o registro canônico e para a
+validação em `pay`. Para **mover fundos**, `pay` precisa do endereço do _Stellar Asset
+Contract_ (SAC) do asset. Resolver o SAC a partir de `code`/`issuer` _on-chain_ é custoso e
+frágil, então o backend resolve esse endereço de forma determinística e o passa como `token`
+ao `register_order`; ele é armazenado (imutável) junto à ordem. O native XLM SAC pode ser
+obtido com `stellar contract id asset --asset native --network testnet`.
+
 ## Build, teste e deploy (Testnet)
 
-```bash
-# Build do WASM
-cargo build --target wasm32-unknown-unknown --release
+Requer Rust **1.84+** (target `wasm32v1-none`, exigido pelo `soroban-sdk` 26) e a
+[Stellar CLI](https://developers.stellar.org/docs/tools/cli).
 
-# Testes unitários (test harness do soroban-sdk)
+```bash
+cd contracts/payorder
+
+# Testes unitários (test harness do soroban-sdk) — não precisa de rede
 cargo test
 
-# Deploy na Testnet (conta admin fora do repositório)
+# Build do WASM
+rustup target add wasm32v1-none
+cargo build --target wasm32v1-none --release
+# => target/wasm32v1-none/release/payorder.wasm
+```
+
+### Deploy automatizado
+
+O script idempotente cobre todo o fluxo (tooling → build → deploy → `initialize` → smoke
+`get_order`). A conta admin (segredo) **nunca** vai para o repositório:
+
+```bash
+# usa/gera a identidade 'payorder-admin' (financiada via Friendbot) por padrão
+infra/scripts/deploy-contract.sh
+
+# ou com um segredo administrativo já existente
+SOROBAN_ADMIN_SECRET=S...  infra/scripts/deploy-contract.sh
+```
+
+O script grava o resultado em `contracts/payorder/deployments/testnet.json` e imprime o
+`CONTRACT_ID`.
+
+### Deploy manual (equivalente)
+
+```bash
 stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/payorder.wasm \
+  --wasm target/wasm32v1-none/release/payorder.wasm \
   --network testnet --source <ADMIN_KEY>
 
-# Inicializar a autoridade administrativa
 stellar contract invoke --id <CONTRACT_ID> --network testnet --source <ADMIN_KEY> \
   -- initialize --admin <ADMIN_PUBKEY>
 ```
 
-Após o deploy, registre o `CONTRACT_ID` em `SOROBAN_CONTRACT_ID` no ambiente do backend.
+Após o deploy, registre o `CONTRACT_ID` em `SOROBAN_CONTRACT_ID` no ambiente do backend e na
+seção **Deployments** abaixo.
+
+## Deployments
+
+| Rede | `CONTRACT_ID` | Admin | Data |
+|------|---------------|-------|------|
+| Testnet | _(preencher após `infra/scripts/deploy-contract.sh`)_ | — | — |
+
+> O deploy on-chain depende de acesso à Stellar Testnet (RPC + Friendbot) e da conta admin,
+> portanto é executado pelo operador/CI com os segredos do ambiente — não a partir deste
+> repositório. O contrato, os testes (`cargo test`) e o build do WASM já estão validados.
 
 ## Integração com o backend
 

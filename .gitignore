@@ -15,6 +15,7 @@ coverage/
 
 # Rust / Soroban contract
 contracts/**/target/
+contracts/**/test_snapshots/
 
 # Environment files (never commit secrets — only *.example)
 .env
