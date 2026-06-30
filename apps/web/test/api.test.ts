@@ -71,6 +71,48 @@ describe('PayOrderApi.login', () => {
   });
 });
 
+describe('PayOrderApi.listTenants', () => {
+  it('unwraps the { items, total } envelope returned by the API', async () => {
+    const tenants = [{ id: 'tenant-1' }, { id: 'tenant-2' }];
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: tenants, total: 2 }));
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    const result = await api.listTenants();
+
+    expect(result).toEqual(tenants);
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/tenants');
+  });
+});
+
+describe('PayOrderApi.listOrders', () => {
+  it('unwraps the { items, total } envelope returned by the API', async () => {
+    const orders = [{ id: 'order-1' }, { id: 'order-2' }];
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: orders, total: 2 }));
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    const result = await api.listOrders();
+
+    expect(result).toEqual(orders);
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/payment-orders');
+  });
+});
+
+describe('PayOrderApi.getOrderEvents', () => {
+  it('unwraps the { items } envelope returned by the API', async () => {
+    const events = [{ id: 'evt-1' }, { id: 'evt-2' }];
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: events }));
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    const result = await api.getOrderEvents('order-1');
+
+    expect(result).toEqual(events);
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/payment-orders/order-1/events');
+  });
+});
+
 describe('PayOrderApi.createOrder', () => {
   it('sends the Idempotency-Key header and never includes wallet fields (RN-02)', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'order-1' }, 202));

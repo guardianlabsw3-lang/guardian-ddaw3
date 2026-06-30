@@ -75,7 +75,7 @@ export interface PaymentOrderEvent {
 }
 
 export interface Paginated<T> {
-  data: T[];
+  items: T[];
   total?: number;
 }
 
