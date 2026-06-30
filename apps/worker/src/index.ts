@@ -3,6 +3,7 @@ import { buildContainer, type WorkerContainer } from './container.js';
 import { createRegistrationWorker } from './jobs/register-order.js';
 import { syncStatusSweep } from './jobs/sync-status.js';
 import { expireOrdersSweep } from './jobs/expire-orders.js';
+import { deliverWebhookSweep } from './jobs/deliver-webhook.js';
 
 /**
  * `@payorder/worker` entrypoint (TASK-016..017). Runs three responsibilities:
@@ -18,9 +19,11 @@ import { expireOrdersSweep } from './jobs/expire-orders.js';
 const MAINTENANCE_QUEUE = 'maintenance';
 const SYNC_STATUS_JOB = 'sync-status';
 const EXPIRE_ORDERS_JOB = 'expire-orders';
+const DELIVER_WEBHOOK_JOB = 'deliver-webhook';
 
 const DEFAULT_SYNC_INTERVAL_MS = 30_000;
 const DEFAULT_EXPIRE_INTERVAL_MS = 60_000;
+const DEFAULT_WEBHOOK_INTERVAL_MS = 30_000;
 
 function intervalFromEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -47,6 +50,14 @@ async function scheduleMaintenance(connection: ConnectionOptions): Promise<Queue
       repeat: { every: intervalFromEnv('EXPIRE_INTERVAL_MS', DEFAULT_EXPIRE_INTERVAL_MS) },
     },
   );
+  await queue.add(
+    DELIVER_WEBHOOK_JOB,
+    {},
+    {
+      ...opts,
+      repeat: { every: intervalFromEnv('WEBHOOK_RETRY_INTERVAL_MS', DEFAULT_WEBHOOK_INTERVAL_MS) },
+    },
+  );
   return queue;
 }
 
@@ -62,6 +73,11 @@ function createMaintenanceWorker(container: WorkerContainer): Worker {
         });
       } else if (job.name === EXPIRE_ORDERS_JOB) {
         await expireOrdersSweep({ expire: container.expire, logger: container.logger });
+      } else if (job.name === DELIVER_WEBHOOK_JOB) {
+        await deliverWebhookSweep({
+          retryWebhooks: container.retryWebhooks,
+          logger: container.logger,
+        });
       }
     },
     { connection: container.connection, concurrency: 1 },

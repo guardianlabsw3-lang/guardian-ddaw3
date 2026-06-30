@@ -1,8 +1,11 @@
-# `@payorder/api` — Backend (NestJS)
+# `@payorder/api` — Backend
 
 PayOrder W3 Guardian REST API. **Phase 2 (TASK-010..015)** ships the framework-free core —
-domain, application use cases and PostgreSQL/Drizzle persistence. HTTP interfaces (NestJS),
-the Stellar/Soroban adapters and the worker land in later phases.
+domain, application use cases and PostgreSQL/Drizzle persistence. **Phase 3 (TASK-016..017)**
+adds the Soroban adapter and on-chain workers. **Phase 4 (TASK-018..024)** adds the REST API:
+a deliberately thin, **framework-free HTTP edge** (a small router over `node:http`), admin JWT
++ API-key auth, idempotency, rate limiting, CORS, signed webhooks, audit and observability,
+plus the OpenAPI contract.
 
 Architecture and layering follow
 [`docs/specs/payorder-w3-guardian/04-architecture.md`](../../docs/specs/payorder-w3-guardian/04-architecture.md):
@@ -23,7 +26,21 @@ src/
     config/                   env loading + validation (zod), Testnet-locked
     persistence/              Drizzle schema, migrations, mappers, repositories, migrator
     adapters/                 SystemClock, UuidV7IdGenerator, Base58SlugGenerator
-    queue/                    in-memory OrderRegistrationQueue (BullMQ adapter: TASK-016)
+    queue/                    in-memory + BullMQ OrderRegistrationQueue producer
+    auth/                     argon2id hasher, HS256 JWT, API-key mint/verify, repositories
+    idempotency/              Drizzle-backed Idempotency-Key store
+    ratelimit/                in-memory fixed-window rate limiter
+    webhooks/                 HMAC signer, fetch sender, delivery repository
+    audit/                    Drizzle audit-log writer
+    observability/            console logger, DB/Redis/RPC readiness checks
+  interfaces/http/            framework-free HTTP edge (TASK-018..023)
+    router, app, server       node:http router + middleware pipeline + server adapter
+    middleware/               request-id, security headers, CORS, auth, rate-limit, idempotency
+    dto.ts                    snake_case wire ⇆ camelCase use-case mapping (spec 08)
+    tenant/ payment-order/    controllers wiring use cases to routes
+    public/ auth/ health/     public query, admin login, /health + /ready
+  container.ts                composition root (buildApiContainer)
+  main.ts                     server entrypoint (graceful shutdown)
 ```
 
 Shared types, zod schemas, Stellar value objects and canonicalization/hash come from
@@ -44,10 +61,36 @@ Shared types, zod schemas, Stellar value objects and canonicalization/hash come 
   — one flow for panel/API/ERP origins, automatic wallet resolution, manual wallet
   rejection (RN-02), and idempotency by `(tenant_id, external_id)`.
 
+## What's implemented (Phase 4 — TASK-018..024)
+
+- **Endpoints (TASK-018/019):** tenants CRUD + activation + wallet; payment orders
+  create/list/get/status/events/cancel + webhook resend; `GET /api/public/payment-orders/{slug}`
+  (no sensitive data, masked document). Wire format is **snake_case** per spec 08; the error
+  envelope is standardized (`{ error: { code, message, request_id, details } }`).
+- **Auth (TASK-020):** admin login issuing an HS256 JWT over **argon2id** password hashes;
+  integrator **API keys** (`X-Api-Key`) with scopes and an optional tenant allowlist. Routes
+  declare `auth`/`scopes`; the middleware enforces `401`/`403` (`FORBIDDEN_SCOPE`,
+  `FORBIDDEN_TENANT`).
+- **Idempotency / rate limit / CORS (TASK-021):** required `Idempotency-Key` on order
+  creation (replay returns the stored response; divergent body → `409`), per principal/IP
+  fixed-window limiting (`429` + `Retry-After`), and a strict CORS allowlist (never `*`).
+- **Webhooks (TASK-022):** HMAC-signed payloads (`X-PayOrder-Signature: t=…,v1=…`), every
+  attempt persisted in `webhook_deliveries`, exponential backoff (1m/5m/30m/2h/6h) retried by
+  the worker, and a manual resend endpoint.
+- **Audit / observability (TASK-023):** critical actions written to `audit_logs` with a
+  sanitized diff; `X-Request-Id` correlation on every response/log; `/health` (liveness) and
+  `/ready` (DB/Redis/Soroban-RPC checks → `503` when degraded).
+- **OpenAPI (TASK-024):** [`openapi/payorder-api.yaml`](../../openapi/payorder-api.yaml) is the
+  contract; a vitest contract test validates the document and asserts it matches the
+  implemented routes exactly (CI fails on drift).
+
 ## Scripts
 
 ```bash
 npm run -w @payorder/api typecheck      # tsc --noEmit
+npm run -w @payorder/api build          # tsc → dist
+npm run -w @payorder/api start          # node dist/main.js (needs a full env)
+npm run -w @payorder/api dev            # tsx watch src/main.ts
 npm run -w @payorder/api test           # vitest (unit always; integration needs DATABASE_URL)
 npm run -w @payorder/api db:generate    # drizzle-kit generate (see note below)
 npm run -w @payorder/api db:migrate     # apply migrations (needs a full env)

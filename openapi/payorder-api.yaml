@@ -13,6 +13,7 @@ servers:
   - url: http://localhost:3000/api
     description: Local
 tags:
+  - name: Auth
   - name: Tenants
   - name: Payment Orders
   - name: Public
@@ -23,6 +24,25 @@ security:
   - ApiKey: []
 
 paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login do admin (emite JWT)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
   /health:
     get:
       tags: [Health]
@@ -63,9 +83,9 @@ paths:
       security: [ { AdminJWT: [] } ]
       parameters:
         - { name: status, in: query, schema: { type: string, enum: [ACTIVE, INACTIVE] } }
-        - { name: document_number, in: query, schema: { type: string } }
-        - { name: page, in: query, schema: { type: integer, default: 1 } }
-        - { name: page_size, in: query, schema: { type: integer, default: 20 } }
+        - { name: document, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
         "200":
           description: OK
@@ -75,9 +95,8 @@ paths:
                 type: object
                 properties:
                   items: { type: array, items: { $ref: "#/components/schemas/Tenant" } }
-                  page: { type: integer }
-                  page_size: { type: integer }
                   total: { type: integer }
+                required: [items, total]
 
   /tenants/{id}:
     get:
@@ -201,8 +220,8 @@ paths:
         - { name: status, in: query, schema: { $ref: "#/components/schemas/OrderStatus" } }
         - { name: tenant_id, in: query, schema: { type: string } }
         - { name: external_id, in: query, schema: { type: string } }
-        - { name: page, in: query, schema: { type: integer, default: 1 } }
-        - { name: page_size, in: query, schema: { type: integer, default: 20 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
         "200":
           description: OK
@@ -212,9 +231,10 @@ paths:
                 type: object
                 properties:
                   items: { type: array, items: { $ref: "#/components/schemas/PaymentOrder" } }
-                  page: { type: integer }
-                  page_size: { type: integer }
                   total: { type: integer }
+                required: [items, total]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /payment-orders/{id}:
     get:
@@ -237,13 +257,7 @@ paths:
           description: OK
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  status: { $ref: "#/components/schemas/OrderStatus" }
-                  onchain_status: { $ref: "#/components/schemas/OrderStatus" }
-                  blockchain_transaction_hash: { type: [string, "null"] }
-                  soroban_contract_id: { type: [string, "null"] }
+              schema: { $ref: "#/components/schemas/PaymentOrderStatus" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /payment-orders/{id}/events:
@@ -257,7 +271,11 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { type: array, items: { $ref: "#/components/schemas/PaymentOrderEvent" } }
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/PaymentOrderEvent" } }
+                required: [items]
         "404": { $ref: "#/components/responses/NotFound" }
 
   /payment-orders/{id}/cancel:
@@ -278,8 +296,14 @@ paths:
       security: [ { AdminJWT: [] }, { ApiKey: [] } ]
       parameters: [ { $ref: "#/components/parameters/IdParam" } ]
       responses:
-        "202": { description: Reenvio enfileirado }
+        "202":
+          description: Reenvio despachado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookResendResult" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
   /public/payment-orders/{slug}:
     get:
@@ -400,7 +424,7 @@ components:
       properties:
         source: { type: string, example: ERP }
         tenant_id: { type: string }
-        tenant_slug: { type: string }
+        slug: { type: string }
         tenant_document: { type: string }
         amount: { type: string, example: "150.00" }
         asset_code: { type: [string, "null"] }
@@ -456,8 +480,44 @@ components:
     PaymentOrderEvent:
       type: object
       properties:
-        id: { type: string, format: uuid }
-        payment_order_id: { type: string, format: uuid }
         event_type: { type: string }
         payload: { type: object, additionalProperties: true }
         created_at: { type: string, format: date-time }
+      required: [event_type, payload, created_at]
+    PaymentOrderStatus:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        soroban_contract_id: { type: [string, "null"] }
+        blockchain_transaction_hash: { type: [string, "null"] }
+        paid_at: { type: [string, "null"], format: date-time }
+        explorer_url: { type: [string, "null"] }
+      required: [id, status]
+    WebhookResendResult:
+      type: object
+      properties:
+        delivery_id: { type: string, format: uuid }
+        event_type: { type: string }
+        status: { type: string, enum: [pending, delivered, failed] }
+      required: [delivery_id, event_type, status]
+    LoginRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      required: [email, password]
+    LoginResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer }
+        admin:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+            role: { type: string }
+          required: [id, email, role]
+      required: [access_token, token_type, expires_in, admin]

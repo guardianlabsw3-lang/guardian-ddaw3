@@ -10,13 +10,22 @@ export class ApplicationError extends Error {
   readonly code: string;
   readonly status: number;
   readonly details: Record<string, unknown> | undefined;
+  /** Extra HTTP response headers the interface layer should set (e.g. `Retry-After`). */
+  readonly headers: Record<string, string> | undefined;
 
-  constructor(code: string, message: string, status: number, details?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    details?: Record<string, unknown>,
+    headers?: Record<string, string>,
+  ) {
     super(message);
     this.name = new.target.name;
     this.code = code;
     this.status = status;
     this.details = details;
+    this.headers = headers;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -29,6 +38,15 @@ export const conflict = (code: string, message: string, details?: Record<string,
 
 export const unprocessable = (code: string, message: string, details?: Record<string, unknown>) =>
   new ApplicationError(code, message, 422, details);
+
+export const badRequest = (code: string, message: string, details?: Record<string, unknown>) =>
+  new ApplicationError(code, message, 400, details);
+
+export const unauthorized = (code: string, message: string, details?: Record<string, unknown>) =>
+  new ApplicationError(code, message, 401, details);
+
+export const forbidden = (code: string, message: string, details?: Record<string, unknown>) =>
+  new ApplicationError(code, message, 403, details);
 
 /**
  * Pick a stable error code from zod issues. The shared schemas emit screaming-snake codes

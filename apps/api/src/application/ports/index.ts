@@ -6,3 +6,7 @@ export * from './payment-order-repository.js';
 export * from './order-registration-queue.js';
 export * from './soroban-contract.js';
 export * from './logger.js';
+export * from './auth.js';
+export * from './idempotency.js';
+export * from './audit.js';
+export * from './webhook.js';
