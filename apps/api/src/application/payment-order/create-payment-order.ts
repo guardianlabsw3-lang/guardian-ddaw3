@@ -9,7 +9,7 @@ import type {
   SlugGenerator,
   TenantRepository,
 } from '../ports/index.js';
-import { conflict, notFound, unprocessable, validate } from '../shared/errors.js';
+import { conflict, forbidden, notFound, unprocessable, validate } from '../shared/errors.js';
 import {
   CreatePaymentOrderInputSchema,
   FORBIDDEN_WALLET_FIELDS,
@@ -19,6 +19,12 @@ import { toPaymentOrderView, type PaymentOrderView } from './views.js';
 
 export interface CreatePaymentOrderOptions {
   correlationId?: string | null;
+  /**
+   * API-key tenant allowlist (spec 08 §6). When non-null, the resolved tenant must be in the
+   * list or the request is rejected `403 FORBIDDEN_TENANT` — checked after resolution so it
+   * works for every origin (id/slug/document) and before anything is persisted.
+   */
+  allowedTenantIds?: readonly string[] | null;
 }
 
 export interface CreatePaymentOrderDeps {
@@ -51,6 +57,12 @@ export class CreatePaymentOrder {
     const input = validate(CreatePaymentOrderInputSchema, rawInput);
 
     const tenant = await this.resolveTenant(input);
+    const allowed = options.allowedTenantIds;
+    if (allowed != null && !allowed.includes(tenant.id)) {
+      throw forbidden('FORBIDDEN_TENANT', 'API key is not allowed to act on this tenant', {
+        tenantId: tenant.id,
+      });
+    }
     if (tenant.status !== 'ACTIVE') {
       throw conflict('TENANT_INACTIVE', 'Tenant is not active', { tenantId: tenant.id });
     }

@@ -29,6 +29,24 @@ export function publicPaymentUrl(baseUrl: string, slug: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/p/${slug}`;
 }
 
+/** Stellar.expert contract explorer URL (spec 08 §3.2); null until registered on-chain. */
+export function explorerUrlFor(baseUrl: string, contractId: string | null): string | null {
+  if (!contractId) {
+    return null;
+  }
+  return `${baseUrl.replace(/\/+$/, '')}/contract/${contractId}`;
+}
+
+/** Status snapshot returned by `GET /api/payment-orders/{id}/status`. */
+export interface PaymentOrderStatusView {
+  id: string;
+  status: string;
+  sorobanContractId: string | null;
+  blockchainTransactionHash: string | null;
+  paidAt: Date | null;
+  explorerUrl: string | null;
+}
+
 export function toPaymentOrderView(order: PaymentOrder, publicBaseUrl: string): PaymentOrderView {
   return {
     id: order.id,

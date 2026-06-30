@@ -1,9 +1,13 @@
 import {
   DrizzlePaymentOrderRepository,
+  DrizzleWebhookDeliveryRepository,
   ExpireOrders,
+  FetchWebhookSender,
   RegisterOrderOnChain,
+  RetryDueWebhooks,
   SorobanContractAdapter,
   SyncOrderStatus,
+  WebhookDispatcher,
   createDb,
   loadConfig,
   redisConnectionOptions,
@@ -31,6 +35,7 @@ export interface WorkerContainer {
   register: RegisterOrderOnChain;
   sync: SyncOrderStatus;
   expire: ExpireOrders;
+  retryWebhooks: RetryDueWebhooks;
   close(): Promise<void>;
 }
 
@@ -53,7 +58,16 @@ export function buildContainer(raw: NodeJS.ProcessEnv = process.env): WorkerCont
 
   const handle: DbHandle = createDb(config.database.url);
   const orders = new DrizzlePaymentOrderRepository(handle.db);
+  const deliveries = new DrizzleWebhookDeliveryRepository(handle.db);
   const clock = new SystemClock();
+
+  const webhookDispatcher = new WebhookDispatcher({
+    deliveries,
+    sender: new FetchWebhookSender(),
+    clock,
+    signingSecret: config.webhooks.signingSecret,
+    logger,
+  });
 
   const contract: SorobanContractPort = new SorobanContractAdapter(
     {
@@ -74,6 +88,13 @@ export function buildContainer(raw: NodeJS.ProcessEnv = process.env): WorkerCont
     register: new RegisterOrderOnChain({ orders, contract, clock, logger }),
     sync: new SyncOrderStatus({ orders, contract, clock, logger }),
     expire: new ExpireOrders({ orders, clock, logger }),
+    retryWebhooks: new RetryDueWebhooks({
+      deliveries,
+      orders,
+      dispatcher: webhookDispatcher,
+      clock,
+      logger,
+    }),
     close: () => handle.close(),
   };
 }
