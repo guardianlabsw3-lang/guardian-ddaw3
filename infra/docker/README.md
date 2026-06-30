@@ -35,17 +35,21 @@ infra/
 
 ## Local (resumo)
 
-Serviços: `postgres`, `redis`, `migrate` (one-shot), `api`, `worker`, `web`. Stellar usa a
-**Testnet pública** (Horizon/Soroban RPC/Friendbot) via variáveis.
+Serviços: `postgres`, `redis`, `migrate` (one-shot), `seed` (one-shot), `api`, `worker`, `web`.
+Stellar usa a **Testnet pública** (Horizon/Soroban RPC/Friendbot) via variáveis.
 
 ```bash
-make up        # sobe tudo
+make up        # sobe tudo (migra e popula o admin + tenant de exemplo automaticamente)
 make migrate   # roda migrations
-make seed      # tenant + wallet de exemplo
+make seed      # re-popula admin + tenant + wallet de exemplo (idempotente)
 make test      # suíte de testes
 ```
 
 API em `http://localhost:3000`, Web em `http://localhost:3001`.
+
+> **Primeiro login.** `make up` roda o `seed` (one-shot, após as migrations) antes de a API
+> subir, então o usuário admin já existe na primeira tentativa de login. Credenciais locais em
+> `.env.local` (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`).
 
 ## VPS com Traefik (resumo)
 
