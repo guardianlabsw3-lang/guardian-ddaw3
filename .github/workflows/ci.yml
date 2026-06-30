@@ -66,8 +66,11 @@ jobs:
 
       - name: Validate VPS compose
         run: |
+          # Services declare `env_file: [.env.vps]`; `config` requires that file to exist on
+          # disk (separate from the `--env-file` interpolation source), so materialize it.
+          cp infra/docker/.env.vps.example infra/docker/.env.vps
           docker compose -p payorder -f infra/docker/docker-compose.vps.yml \
-            --env-file infra/docker/.env.vps.example config -q
+            --env-file infra/docker/.env.vps config -q
           echo "vps compose OK"
 
   contract:

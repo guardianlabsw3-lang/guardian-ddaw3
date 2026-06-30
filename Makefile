@@ -58,4 +58,5 @@ config: env ## Validate the local compose file
 	$(COMPOSE_LOCAL) config -q && echo "local compose OK"
 
 vps-config: ## Validate the VPS compose file (dry-run, no secrets needed)
-	$(COMPOSE_VPS) --env-file $(DOCKER_DIR)/.env.vps.example config -q && echo "vps compose OK"
+	@test -f $(DOCKER_DIR)/.env.vps || cp $(DOCKER_DIR)/.env.vps.example $(DOCKER_DIR)/.env.vps
+	$(COMPOSE_VPS) --env-file $(DOCKER_DIR)/.env.vps config -q && echo "vps compose OK"
