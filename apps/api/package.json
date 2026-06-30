@@ -2,8 +2,29 @@
   "name": "@payorder/api",
   "version": "0.0.0",
   "private": true,
-  "description": "PayOrder W3 Guardian — REST API (NestJS). Placeholder; implemented from TASK-010 onward.",
+  "description": "PayOrder W3 Guardian — REST API (NestJS). Domain, persistence and use cases (TASK-010..015).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/infrastructure/persistence/migrate.ts"
+  },
   "dependencies": {
-    "@payorder/shared": "*"
+    "@payorder/shared": "*",
+    "drizzle-orm": "^0.38.3",
+    "postgres": "^3.4.5",
+    "uuid": "^11.0.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "drizzle-kit": "^0.30.1",
+    "tsx": "^4.19.2"
   }
 }
