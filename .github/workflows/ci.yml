@@ -88,8 +88,8 @@ jobs:
         run: |
           # Services declare `env_file: [.env.vps]`; `config` requires that file to exist on
           # disk (separate from the `--env-file` interpolation source), so materialize it.
-          cp infra/docker/.env.vps.example infra/docker/.env.vps
-          docker compose -p payorder -f infra/docker/docker-compose.vps.yml \
+          cp infra/docker/.env.payorder.vps.example infra/docker/.env.vps
+          docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml \
             --env-file infra/docker/.env.vps config -q
           echo "vps compose OK"
 
@@ -230,4 +230,8 @@ jobs:
             cd "${{ secrets.VPS_PATH }}"
             git fetch --all --prune
             git checkout "${{ github.sha }}"
-            IMAGE_TAG="sha-$(echo "${{ github.sha }}" | cut -c1-7)" infra/scripts/deploy.sh
+            # deploy.sh reads .env.vps + the payorder VPS compose file, pulls the images tagged
+            # with this commit's short SHA, migrates, then brings the stack up (see script header).
+            IMAGE_TAG="sha-$(echo "${{ github.sha }}" | cut -c1-7)" \
+              COMPOSE_FILE="infra/docker/docker-compose.payorder.vps.yml" \
+              infra/scripts/deploy.sh
