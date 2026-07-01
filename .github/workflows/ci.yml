@@ -81,7 +81,7 @@ jobs:
         run: |
           cp infra/docker/.env.local.example infra/docker/.env.local
           docker compose --env-file infra/docker/.env.local \
-            -f infra/docker/docker-compose.local.yml config -q
+            -f infra/docker/docker-compose.payorder.local.yml config -q
           echo "local compose OK"
 
       - name: Validate VPS compose
