@@ -1,15 +1,32 @@
-name: CI
+name: CI / Release
 
+# Single pipeline modelled on the attached CI/Release workflow, adapted to this repo:
+#   * CI gates (lint/typecheck/test, compose config, Soroban contract) run on every PR and push.
+#   * Release (build + push images to GHCR) runs only once code has landed on main / a tag.
+#   * Deploy pushes the freshly built images to the VPS on a push to main.
+#
+# PRs never build/push/deploy: fork PRs don't get repo secrets, and deploying unmerged code is
+# unsafe. The release + deploy jobs are therefore gated on `github.event_name == 'push'`.
 on:
-  push:
-    branches: ['**']
   pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-release-${{ github.ref }}
+  # Cancel superseded runs on PRs (fast feedback), but never cancel a release/deploy on main.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # CI — lint · typecheck · test (workspaces)
+  # ---------------------------------------------------------------------------
   build:
     name: Lint · Typecheck · Test
     runs-on: ubuntu-latest
@@ -47,6 +64,9 @@ jobs:
       - name: Test
         run: npm test
 
+  # ---------------------------------------------------------------------------
+  # CI — Docker Compose config validation
+  # ---------------------------------------------------------------------------
   compose:
     name: Docker Compose · config validation
     runs-on: ubuntu-latest
@@ -73,6 +93,9 @@ jobs:
             --env-file infra/docker/.env.vps config -q
           echo "vps compose OK"
 
+  # ---------------------------------------------------------------------------
+  # CI — Soroban contract · fmt · clippy · test
+  # ---------------------------------------------------------------------------
   contract:
     name: Soroban contract · fmt · clippy · test
     runs-on: ubuntu-latest
@@ -109,3 +132,102 @@ jobs:
 
       - name: Build WASM
         run: cargo build --target wasm32v1-none --release
+
+  # ---------------------------------------------------------------------------
+  # Release — build & push images to GHCR (only after every CI gate passes)
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & push ${{ matrix.image }}
+    needs: [build, compose, contract]
+    # Only on a real push to main or a version tag — never on PRs.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: payorder-api
+            dockerfile: infra/docker/api.Dockerfile
+            build_args: ''
+          # The web bundle bakes NEXT_PUBLIC_* URLs at BUILD time, so they come from repo vars.
+          - image: payorder-web
+            dockerfile: infra/docker/web.Dockerfile
+            build_args: |
+              NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+              NEXT_PUBLIC_HORIZON_URL=${{ vars.NEXT_PUBLIC_HORIZON_URL }}
+              NEXT_PUBLIC_SOROBAN_RPC_URL=${{ vars.NEXT_PUBLIC_SOROBAN_RPC_URL }}
+              NEXT_PUBLIC_EXPLORER_BASE_URL=${{ vars.NEXT_PUBLIC_EXPLORER_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # GHCR image paths must be lowercase; the owner can contain capitals.
+      - name: Lowercase owner
+        id: owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ matrix.image }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # ---------------------------------------------------------------------------
+  # Deploy — push the freshly built "latest" images to the VPS on a push to main
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to VPS
+    needs: build-and-push
+    # Only on the default branch, and only when the repo has opted in (set repo variable
+    # DEPLOY_ENABLED=true and configure the VPS_* secrets below). Keeps the pipeline green for
+    # forks / unconfigured repos.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: vps # add required reviewers here for a manual approval gate
+    steps:
+      - name: Deploy over SSH (pull → migrate → up → smoke)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # VPS_PATH is the checked-out repo on the VPS; .env.vps lives in infra/docker/ there.
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.VPS_PATH }}"
+            git fetch --all --prune
+            git checkout "${{ github.sha }}"
+            IMAGE_TAG="sha-$(echo "${{ github.sha }}" | cut -c1-7)" infra/scripts/deploy.sh
