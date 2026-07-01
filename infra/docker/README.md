@@ -13,7 +13,8 @@ infra/
     api.Dockerfile            # imagem Node única: api · worker · migrate · seed (por comando)
     web.Dockerfile            # imagem do frontend (Next.js, output standalone)
     docker-compose.local.yml  # ambiente local completo
-    docker-compose.vps.yml    # deploy na VPS atrás do Traefik existente
+    docker-compose.vps.yml    # deploy na VPS (Traefik com provider Docker + labels)
+    docker-compose.traefik.yml # deploy na VPS com o Traefik EXISTENTE (provider de ARQUIVO)
     .env.local.example        # variáveis locais
     .env.vps.example          # variáveis da VPS
   traefik/
@@ -64,6 +65,28 @@ API em `http://localhost:3000`, Web em `http://localhost:3001`.
 docker compose -p payorder -f infra/docker/docker-compose.vps.yml config   # valida
 docker compose -p payorder -f infra/docker/docker-compose.vps.yml run --rm migrate
 docker compose -p payorder -f infra/docker/docker-compose.vps.yml up -d
+```
+
+### Qual arquivo usar?
+
+Depende de como o Traefik da VPS está configurado:
+
+- **`docker-compose.vps.yml`** — Traefik com o **provider Docker habilitado**. O roteamento
+  vem das **labels** `traefik.*` nos serviços.
+- **`docker-compose.traefik.yml`** — Traefik com o **provider de ARQUIVO/diretório** e o provider
+  Docker **desabilitado** (incompatível com Docker Engine 29.x). É o caso da VPS atual da Guardian
+  Labs: as labels são ignoradas e o roteamento vem de um `.toml` estático. Este compose entra na
+  rede externa `proxy`, e as rotas ficam em
+  [`infra/traefik/payorder_dynamic.toml`](../traefik/payorder_dynamic.toml) (roteia por
+  `container_name`). Persistência em **volumes docker nomeados** (`payorder_pg`/`payorder_redis`).
+
+```bash
+# 1) copiar as rotas para o Traefik existente (hot-reload, sem restart):
+cp infra/traefik/payorder_dynamic.toml ~/DockerConfig/traefik/dynamic/
+# 2) subir a stack (Testnet):
+docker compose -p payorder -f infra/docker/docker-compose.traefik.yml --env-file infra/docker/.env.vps config
+docker compose -p payorder -f infra/docker/docker-compose.traefik.yml run --rm migrate
+docker compose -p payorder -f infra/docker/docker-compose.traefik.yml up -d
 ```
 
 ## Princípios

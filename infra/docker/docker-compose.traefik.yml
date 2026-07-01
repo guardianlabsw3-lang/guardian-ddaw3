@@ -1,0 +1,151 @@
+# =============================================================================
+# PayOrder W3 Guardian — VPS stack for the EXISTING (file-provider) Traefik.
+#
+# Use THIS file — not docker-compose.vps.yml — on the VPS whose Traefik was set
+# up by the guardian-seal stack. That Traefik has the **Docker provider
+# DISABLED** (incompatible with Docker Engine 29.x) and routes only via the
+# **file/directory provider** (`--providers.file.directory=/dynamic`). So the
+# `traefik.*` labels in docker-compose.vps.yml would be silently ignored there.
+#
+# How this stack plugs into the existing Traefik (same model as guardian-seal):
+#   • It does NOT run Traefik/Portainer — those are singletons already owned by
+#     the other product. This stack only JOINS the external `proxy` network and
+#     the running Traefik routes to it by CONTAINER NAME (payorder_api /
+#     payorder_web), per infra/traefik/payorder_dynamic.toml.
+#   • Public services (api/web) live on `proxy`; postgres/redis/worker/migrate
+#     stay on a private `internal` network, never reachable from Traefik/host.
+#   • Isolated project name (`payorder`) + `payorder_*` container/volume names →
+#     no collision with the other product's containers or volumes.
+#   • Persistence uses NAMED DOCKER VOLUMES (payorder_pg / payorder_redis), not
+#     bind mounts — managed by Docker under /var/lib/docker/volumes.
+#   • Stellar is the public **Testnet** (mainnet is rejected by app config).
+#
+# DNS isolation on the shared `proxy` network:
+#   Compose adds each service name as a network alias, so a bare `api`/`web`
+#   alias could collide with the other product's `api`/`web` on `proxy`. We
+#   therefore reference peers by their UNIQUE container names (payorder_*):
+#   DATABASE_URL/REDIS_URL and the web→api SSR URL all use `payorder_*` hosts,
+#   which Docker's embedded DNS resolves unambiguously.
+#
+# Prerequisites on the VPS (once):
+#   docker network ls | grep -w proxy          # confirm the shared network exists
+#   cp infra/traefik/payorder_dynamic.toml ~/DockerConfig/traefik/dynamic/
+#   # (Traefik with --providers.file.watch=true hot-reloads it — no restart.)
+#   cp infra/docker/.env.vps.example infra/docker/.env.vps  # then fill in secrets
+#
+# Validate / deploy:
+#   docker compose -p payorder -f infra/docker/docker-compose.traefik.yml --env-file infra/docker/.env.vps config
+#   docker compose -p payorder -f infra/docker/docker-compose.traefik.yml pull
+#   docker compose -p payorder -f infra/docker/docker-compose.traefik.yml run --rm migrate
+#   docker compose -p payorder -f infra/docker/docker-compose.traefik.yml up -d
+# =============================================================================
+name: payorder
+
+services:
+  api:
+    image: ${REGISTRY}/payorder-api:${IMAGE_TAG}
+    container_name: payorder_api
+    env_file: ['.env.vps']
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [proxy, internal] # proxy → Traefik routes here; internal → db/redis
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging: &default-logging
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  worker:
+    image: ${REGISTRY}/payorder-api:${IMAGE_TAG}
+    container_name: payorder_worker
+    command: ['node', 'apps/worker/dist/index.js']
+    env_file: ['.env.vps']
+    restart: unless-stopped
+    depends_on:
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [internal] # no Traefik; never exposed
+    logging: *default-logging
+
+  web:
+    image: ${REGISTRY}/payorder-web:${IMAGE_TAG}
+    container_name: payorder_web
+    env_file: ['.env.vps']
+    restart: unless-stopped
+    # SSR reaches the API by its UNIQUE container name (a bare `api` alias would
+    # be ambiguous on the shared `proxy` network). Overrides any value in .env.
+    environment:
+      API_INTERNAL_BASE_URL: ${API_INTERNAL_BASE_URL:-http://payorder_api:3000}
+    depends_on:
+      api: { condition: service_started }
+    networks: [proxy]
+    logging: *default-logging
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: payorder_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: ['payorder_pg:/var/lib/postgresql/data'] # named docker volume
+    restart: unless-stopped
+    networks: [internal] # never exposed to Traefik/host
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: payorder_redis
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes: ['payorder_redis:/data'] # named docker volume
+    restart: unless-stopped
+    networks: [internal]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+  # One-shot: apply migrations before api/worker start. Run explicitly or via depends_on.
+  migrate:
+    image: ${REGISTRY}/payorder-api:${IMAGE_TAG}
+    container_name: payorder_migrate
+    command: ['node', 'apps/api/dist/infrastructure/persistence/migrate.js']
+    env_file: ['.env.vps']
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+    restart: 'no'
+    logging: *default-logging
+
+volumes:
+  payorder_pg:
+  payorder_redis:
+
+networks:
+  # Existing Traefik ingress network (created by the other product's stack).
+  # Defaults to `proxy` (the real network name on the VPS); override with
+  # TRAEFIK_NETWORK if yours differs (`docker network ls` to confirm).
+  proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK:-proxy}
+  # Private network for db/redis/worker ↔ api; scoped to project `payorder`,
+  # so its `postgres`/`redis` aliases never collide with the other product.
+  internal:
+    driver: bridge

@@ -1,0 +1,79 @@
+# =============================================================================
+# Traefik — dynamic routes for the PayOrder W3 Guardian stack (TESTNET).
+#
+# For the EXISTING Traefik on the VPS, which uses the file/directory provider
+# (`--providers.file.directory=/dynamic`, Docker provider DISABLED). Copy this
+# file next to the other product's route files and Traefik hot-reloads it:
+#   cp infra/traefik/payorder_dynamic.toml ~/DockerConfig/traefik/dynamic/
+#
+# Traefik merges every *.toml in /dynamic into one config, so:
+#   • Do NOT redefine `https-redirect` — it already comes from the other
+#     product's traefik_dynamic.toml; we only reference it here.
+#   • All names are prefixed `payorder-` to avoid collisions.
+#   • Services point at the CONTAINER NAMES (payorder_api / payorder_web) on the
+#     shared `proxy` network — see infra/docker/docker-compose.traefik.yml.
+#   • certResolver `le` matches the existing Traefik's ACME resolver.
+#
+# Hosts (DNS → VPS IP). Keep them in sync with WEB_DOMAIN / API_DOMAIN and
+# CORS_ORIGINS in infra/docker/.env.vps:
+#   pow3.guardian-labs.xyz      → web (payorder_web:3000)
+#   api-pow3.guardian-labs.xyz  → api (payorder_api:3000)
+# =============================================================================
+
+[http]
+
+  # ── Middlewares ───────────────────────────────────────────────────────────
+  [http.middlewares]
+    # CORS for browser calls from the PayOrder frontend to the API.
+    # (https-redirect is reused from the other product's file — do not redefine.)
+    [http.middlewares.payorder-api-cors.headers]
+      accessControlAllowCredentials = true
+      accessControlAllowHeaders = ["Authorization", "Content-Type", "Accept", "Accept-Language"]
+      accessControlAllowMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+      accessControlAllowOriginList = ["https://pow3.guardian-labs.xyz"]
+      addVaryHeader = true
+
+  # ── Routers ───────────────────────────────────────────────────────────────
+  [http.routers]
+
+    # Web (portal) — HTTPS
+    [http.routers.payorder-web-secure]
+      rule = "Host(`pow3.guardian-labs.xyz`)"
+      entryPoints = ["websecure"]
+      service = "payorder-web"
+      [http.routers.payorder-web-secure.tls]
+        certResolver = "le"
+
+    # Web (portal) — HTTP → HTTPS
+    [http.routers.payorder-web]
+      rule = "Host(`pow3.guardian-labs.xyz`)"
+      entryPoints = ["web"]
+      middlewares = ["https-redirect"]
+      service = "payorder-web"
+
+    # API — HTTPS
+    [http.routers.payorder-api-secure]
+      rule = "Host(`api-pow3.guardian-labs.xyz`)"
+      entryPoints = ["websecure"]
+      middlewares = ["payorder-api-cors"]
+      service = "payorder-api"
+      [http.routers.payorder-api-secure.tls]
+        certResolver = "le"
+
+    # API — HTTP → HTTPS
+    [http.routers.payorder-api]
+      rule = "Host(`api-pow3.guardian-labs.xyz`)"
+      entryPoints = ["web"]
+      middlewares = ["https-redirect"]
+      service = "payorder-api"
+
+  # ── Services ──────────────────────────────────────────────────────────────
+  [http.services]
+
+    [http.services.payorder-web.loadBalancer]
+      [[http.services.payorder-web.loadBalancer.servers]]
+        url = "http://payorder_web:3000"
+
+    [http.services.payorder-api.loadBalancer]
+      [[http.services.payorder-api.loadBalancer.servers]]
+        url = "http://payorder_api:3000"
