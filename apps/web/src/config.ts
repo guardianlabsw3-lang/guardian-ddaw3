@@ -18,7 +18,7 @@ function clean(url: string): string {
 
 export function getConfig(): WebConfig {
   return {
-    apiBaseUrl: clean(process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'),
+    apiBaseUrl: clean(process.env.NEXT_PUBLIC_API_BASE_URL || 'https://pow3-api.guardian-labs.xyz'),
     network: 'TESTNET',
     horizonUrl: clean(process.env.NEXT_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org'),
     sorobanRpcUrl: clean(
