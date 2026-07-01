@@ -17,7 +17,7 @@
 # Hosts (DNS → VPS IP). Keep them in sync with WEB_DOMAIN / API_DOMAIN and
 # CORS_ORIGINS in infra/docker/.env.vps:
 #   pow3.guardian-labs.xyz      → web (payorder_web:3000)
-#   api-pow3.guardian-labs.xyz  → api (payorder_api:3000)
+#   pow3-api.guardian-labs.xyz  → api (payorder_api:3000)
 # =============================================================================
 
 [http]
@@ -53,7 +53,7 @@
 
     # API — HTTPS
     [http.routers.payorder-api-secure]
-      rule = "Host(`api-pow3.guardian-labs.xyz`)"
+      rule = "Host(`pow3-api.guardian-labs.xyz`)"
       entryPoints = ["websecure"]
       middlewares = ["payorder-api-cors"]
       service = "payorder-api"
@@ -62,7 +62,7 @@
 
     # API — HTTP → HTTPS
     [http.routers.payorder-api]
-      rule = "Host(`api-pow3.guardian-labs.xyz`)"
+      rule = "Host(`pow3-api.guardian-labs.xyz`)"
       entryPoints = ["web"]
       middlewares = ["https-redirect"]
       service = "payorder-api"
