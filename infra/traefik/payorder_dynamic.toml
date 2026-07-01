@@ -14,10 +14,10 @@
 #     shared `proxy` network — see infra/docker/docker-compose.traefik.yml.
 #   • certResolver `le` matches the existing Traefik's ACME resolver.
 #
-# Hosts (DNS → VPS IP). Edit to match your domains; keep them in sync with
-# WEB_DOMAIN / API_DOMAIN and CORS_ORIGINS in infra/docker/.env.vps:
-#   payorder.guardianlabs.com.br      → web (payorder_web:3000)
-#   api-payorder.guardianlabs.com.br  → api (payorder_api:3000)
+# Hosts (DNS → VPS IP). Keep them in sync with WEB_DOMAIN / API_DOMAIN and
+# CORS_ORIGINS in infra/docker/.env.vps:
+#   pow3.guardian-labs.xyz      → web (payorder_web:3000)
+#   api-pow3.guardian-labs.xyz  → api (payorder_api:3000)
 # =============================================================================
 
 [http]
@@ -30,7 +30,7 @@
       accessControlAllowCredentials = true
       accessControlAllowHeaders = ["Authorization", "Content-Type", "Accept", "Accept-Language"]
       accessControlAllowMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-      accessControlAllowOriginList = ["https://payorder.guardianlabs.com.br"]
+      accessControlAllowOriginList = ["https://pow3.guardian-labs.xyz"]
       addVaryHeader = true
 
   # ── Routers ───────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@
 
     # Web (portal) — HTTPS
     [http.routers.payorder-web-secure]
-      rule = "Host(`payorder.guardianlabs.com.br`)"
+      rule = "Host(`pow3.guardian-labs.xyz`)"
       entryPoints = ["websecure"]
       service = "payorder-web"
       [http.routers.payorder-web-secure.tls]
@@ -46,14 +46,14 @@
 
     # Web (portal) — HTTP → HTTPS
     [http.routers.payorder-web]
-      rule = "Host(`payorder.guardianlabs.com.br`)"
+      rule = "Host(`pow3.guardian-labs.xyz`)"
       entryPoints = ["web"]
       middlewares = ["https-redirect"]
       service = "payorder-web"
 
     # API — HTTPS
     [http.routers.payorder-api-secure]
-      rule = "Host(`api-payorder.guardianlabs.com.br`)"
+      rule = "Host(`api-pow3.guardian-labs.xyz`)"
       entryPoints = ["websecure"]
       middlewares = ["payorder-api-cors"]
       service = "payorder-api"
@@ -62,7 +62,7 @@
 
     # API — HTTP → HTTPS
     [http.routers.payorder-api]
-      rule = "Host(`api-payorder.guardianlabs.com.br`)"
+      rule = "Host(`api-pow3.guardian-labs.xyz`)"
       entryPoints = ["web"]
       middlewares = ["https-redirect"]
       service = "payorder-api"
