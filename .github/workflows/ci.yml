@@ -216,10 +216,9 @@ jobs:
   deploy:
     name: Deploy to VPS
     needs: build-and-push
-    # Only on the default branch, and only when the repo has opted in (set repo variable
-    # DEPLOY_ENABLED=true and configure the VPS_* / app secrets below). Keeps the pipeline green
-    # for forks / unconfigured repos.
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true' }}
+    # Deploys on every push to the default branch (PRs/tags never deploy). Requires the
+    # VPS_* / app secrets below to be configured.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment: vps # add required reviewers here for a manual approval gate
     steps:
