@@ -10,18 +10,18 @@ Empacotamento e orquestração local e em VPS (com Traefik existente). Specs det
 ```text
 infra/
   docker/
-    api.Dockerfile            # imagem Node única: api · worker · migrate · seed (por comando)
-    web.Dockerfile            # imagem do frontend (Next.js, output standalone)
-    docker-compose.local.yml  # ambiente local completo
-    docker-compose.vps.yml    # deploy na VPS (Traefik com provider Docker + labels)
-    docker-compose.traefik.yml # deploy na VPS com o Traefik EXISTENTE (provider de ARQUIVO)
-    .env.local.example        # variáveis locais
-    .env.vps.example          # variáveis da VPS
+    api.Dockerfile                     # imagem Node única: api · worker · migrate · seed (por comando)
+    web.Dockerfile                     # imagem do frontend (Next.js, output standalone)
+    docker-compose.payorder.local.yml  # ambiente local completo (build local)
+    docker-compose.payorder.vps.yml    # deploy na VPS atrás do Traefik EXISTENTE (provider de ARQUIVO)
+    .env.local.example                 # variáveis locais
+    .env.payorder.vps.example          # variáveis da VPS (imagens do Docker Hub)
   traefik/
-    README.md                 # como integrar com o Traefik existente (labels, rede externa)
+    payorder_dynamic.toml              # rotas do PayOrder para o Traefik existente (file provider)
+    README.md                          # como integrar com o Traefik existente (rede externa `proxy`)
   scripts/
-    deploy-contract.sh        # build + deploy do contrato Soroban (Testnet)
-    deploy.sh                 # deploy da stack na VPS (pull → migrate → up → smoke)
+    deploy-contract.sh                 # build + deploy do contrato Soroban (Testnet)
+    deploy.sh                          # deploy na VPS (rotas → pull → migrate → up → smoke)
 ```
 
 > **Uma imagem Node, vários comandos.** `api.Dockerfile` empacota api, worker, migrate e seed.
@@ -52,42 +52,42 @@ API em `http://localhost:3000`, Web em `http://localhost:3001`.
 > subir, então o usuário admin já existe na primeira tentativa de login. Credenciais locais em
 > `.env.local` (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`).
 
-## VPS com Traefik (resumo)
+## VPS com o Traefik existente (resumo)
 
-- **Project name isolado** (`-p payorder`) e nomes/volumes prefixados (`payorder_*`).
-- **Rede externa** do Traefik (`external: true`) para `api`/`web`; rede interna privada para
-  `postgres`/`redis`/`worker`.
-- **Sem `ports:`** em serviços atrás do Traefik; roteamento por **labels**.
-- **Banco isolado** por padrão (ver trade-offs na spec).
-- Domínios via variável (`WEB_DOMAIN`, `API_DOMAIN`); TLS via Traefik existente.
+A VPS da Guardian Labs já roda o Traefik singleton da stack guardian-seal, com o **provider
+Docker DESABILITADO** (incompatível com Docker Engine 29.x) e roteamento pelo **provider de
+ARQUIVO/diretório** (`--providers.file.directory=/dynamic`). Labels `traefik.*` são ignoradas.
 
-```bash
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml config   # valida
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml run --rm migrate
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml up -d
-```
-
-### Qual arquivo usar?
-
-Depende de como o Traefik da VPS está configurado:
-
-- **`docker-compose.vps.yml`** — Traefik com o **provider Docker habilitado**. O roteamento
-  vem das **labels** `traefik.*` nos serviços.
-- **`docker-compose.traefik.yml`** — Traefik com o **provider de ARQUIVO/diretório** e o provider
-  Docker **desabilitado** (incompatível com Docker Engine 29.x). É o caso da VPS atual da Guardian
-  Labs: as labels são ignoradas e o roteamento vem de um `.toml` estático. Este compose entra na
-  rede externa `proxy`, e as rotas ficam em
-  [`infra/traefik/payorder_dynamic.toml`](../traefik/payorder_dynamic.toml) (roteia por
-  `container_name`). Persistência em **volumes docker nomeados** (`payorder_pg`/`payorder_redis`).
+- **Imagens do Docker Hub**, publicadas pelo release do CI (`.github/workflows/ci.yml`):
+  `${DOCKERHUB_USERNAME}/payorder-api` e `${DOCKERHUB_USERNAME}/payorder-web`, tags
+  `sha-<short>` (deploy pinado) + `latest`.
+- **Project name isolado** (`-p payorder`) e nomes/volumes prefixados (`payorder_*`) — sem
+  colisão com o outro produto.
+- `api`/`web` entram na **rede externa** `proxy` (a mesma do Traefik existente); rede interna
+  privada para `postgres`/`redis`/`worker`/`migrate` (nunca expostos).
+- **Sem `ports:`** em serviços atrás do Traefik; roteamento por **container name** via
+  [`infra/traefik/payorder_dynamic.toml`](../traefik/payorder_dynamic.toml) (o
+  `deploy.sh` copia esse arquivo para o diretório dinâmico do Traefik a cada deploy;
+  hot-reload, sem restart).
+- Persistência em **volumes docker nomeados** (`payorder_pg`/`payorder_redis`).
+- Domínios: `pow3.guardian-labs.xyz` (web) e `pow3-api.guardian-labs.xyz` (api); TLS via o
+  resolver `le` do Traefik existente.
 
 ```bash
-# 1) copiar as rotas para o Traefik existente (hot-reload, sem restart):
+# deploy completo (rotas → pull → migrate → up → smoke) — o CI faz isso via SSH:
+IMAGE_TAG=sha-<short> infra/scripts/deploy.sh
+
+# ou manualmente:
 cp infra/traefik/payorder_dynamic.toml ~/DockerConfig/traefik/dynamic/
-# 2) subir a stack (Testnet):
-docker compose -p payorder -f infra/docker/docker-compose.traefik.yml --env-file infra/docker/.env.vps config
-docker compose -p payorder -f infra/docker/docker-compose.traefik.yml run --rm migrate
-docker compose -p payorder -f infra/docker/docker-compose.traefik.yml up -d
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml --env-file infra/docker/.env.vps config -q
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml pull
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml run --rm migrate
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml up -d
 ```
+
+> **Imagens privadas?** O pull anônimo funciona para repositórios públicos do Docker Hub. Se
+> os repositórios forem privados, faça `docker login` uma vez na VPS com um access token de
+> leitura.
 
 ## Princípios
 

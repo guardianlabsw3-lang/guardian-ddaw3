@@ -11,7 +11,7 @@
 #     product's traefik_dynamic.toml; we only reference it here.
 #   • All names are prefixed `payorder-` to avoid collisions.
 #   • Services point at the CONTAINER NAMES (payorder_api / payorder_web) on the
-#     shared `proxy` network — see infra/docker/docker-compose.traefik.yml.
+#     shared `proxy` network — see infra/docker/docker-compose.payorder.vps.yml.
 #   • certResolver `le` matches the existing Traefik's ACME resolver.
 #
 # Hosts (DNS → VPS IP). Keep them in sync with WEB_DOMAIN / API_DOMAIN and
