@@ -1,8 +1,12 @@
 name: CI / Release
 
-# Single pipeline modelled on the attached CI/Release workflow, adapted to this repo:
+# Single pipeline modelled on the guardian-seal CI/Release workflow, adapted to this repo:
 #   * CI gates (lint/typecheck/test, compose config, Soroban contract) run on every PR and push.
-#   * Release (build + push images to GHCR) runs only once code has landed on main / a tag.
+#   * Release (build + push images to DOCKER HUB) runs only once code has landed on main / a tag.
+#     Images: ${DOCKERHUB_USERNAME}/payorder-api and ${DOCKERHUB_USERNAME}/payorder-web,
+#     tagged sha-<short> + latest — the same scheme the guardian-seal stack already uses on
+#     this VPS. Requires repo secrets DOCKERHUB_USERNAME + DOCKERHUB_TOKEN (a Docker Hub
+#     access token with Read/Write scope).
 #   * Deploy pushes the freshly built images to the VPS on a push to main.
 #
 # PRs never build/push/deploy: fork PRs don't get repo secrets, and deploying unmerged code is
@@ -19,9 +23,6 @@ concurrency:
   group: ci-release-${{ github.ref }}
   # Cancel superseded runs on PRs (fast feedback), but never cancel a release/deploy on main.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-env:
-  REGISTRY: ghcr.io
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -134,7 +135,7 @@ jobs:
         run: cargo build --target wasm32v1-none --release
 
   # ---------------------------------------------------------------------------
-  # Release — build & push images to GHCR (only after every CI gate passes)
+  # Release — build & push images to Docker Hub (only after every CI gate passes)
   # ---------------------------------------------------------------------------
   build-and-push:
     name: Build & push ${{ matrix.image }}
@@ -144,7 +145,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -164,10 +164,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # GHCR image paths must be lowercase; the owner can contain capitals.
-      - name: Lowercase owner
+      # The Docker Hub namespace is not secret (it's visible in every image ref), so prefer
+      # the repo VARIABLE — falling back to the secret keeps single-secret setups working,
+      # at the cost of `***` masking in the run logs.
+      - name: Resolve Docker Hub namespace
         id: owner
-        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+        env:
+          DOCKERHUB_NS: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+        run: |
+          : "${DOCKERHUB_NS:?set the DOCKERHUB_USERNAME repo variable (or secret)}"
+          echo "value=${DOCKERHUB_NS}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -175,18 +181,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Image metadata (tags + labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/${{ matrix.image }}
+          images: ${{ steps.owner.outputs.value }}/${{ matrix.image }}
           tags: |
             type=sha,prefix=sha-,format=short
             type=ref,event=tag
@@ -229,11 +234,10 @@ jobs:
           IMAGE_TAG: ${{ steps.tag.outputs.image_tag }}
 
           # --- Non-secret config (repo Variables; shell defaults below cover unset ones) ---
-          REGISTRY: ${{ vars.REGISTRY }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
           WEB_DOMAIN: ${{ vars.WEB_DOMAIN }}
           API_DOMAIN: ${{ vars.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ vars.TRAEFIK_NETWORK }}
-          CERT_RESOLVER: ${{ vars.CERT_RESOLVER }}
           # Public on-chain (Testnet) contract address — not a secret, but env-specific.
           SOROBAN_CONTRACT_ID: ${{ vars.SOROBAN_CONTRACT_ID }}
 
@@ -247,7 +251,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           # appleboy/ssh-action only forwards the env vars named here into the remote shell.
-          envs: IMAGE_TAG,REGISTRY,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,CERT_RESOLVER,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
+          envs: IMAGE_TAG,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
           script_stop: true
           script: |
             set -euo pipefail
@@ -256,6 +260,7 @@ jobs:
             git checkout "${{ github.sha }}"
 
             # --- Fail fast if a required secret was not configured in GitHub ---
+            : "${DOCKERHUB_USERNAME:?set the DOCKERHUB_USERNAME repo variable (or secret)}"
             : "${POSTGRES_PASSWORD:?set the POSTGRES_PASSWORD repo secret}"
             : "${JWT_SECRET:?set the JWT_SECRET repo secret}"
             : "${WEBHOOK_SIGNING_SECRET:?set the WEBHOOK_SIGNING_SECRET repo secret}"
@@ -263,11 +268,9 @@ jobs:
             : "${SOROBAN_CONTRACT_ID:?set the SOROBAN_CONTRACT_ID repo variable}"
 
             # --- Non-secret config: repo Variables override these production defaults ---
-            REGISTRY="${REGISTRY:-ghcr.io/guardianlabsw3-lang}"
             WEB_DOMAIN="${WEB_DOMAIN:-pow3.guardian-labs.xyz}"
             API_DOMAIN="${API_DOMAIN:-pow3-api.guardian-labs.xyz}"
             TRAEFIK_NETWORK="${TRAEFIK_NETWORK:-proxy}"
-            CERT_RESOLVER="${CERT_RESOLVER:-le}"
             POSTGRES_USER=payorder
             POSTGRES_DB=payorder
 
@@ -279,11 +282,11 @@ jobs:
             cat > infra/docker/.env.vps <<EOF
             # Generated by CI (.github/workflows/ci.yml) — do NOT edit by hand; changes are
             # overwritten on the next deploy. Sourced from GitHub Secrets + Variables.
-            REGISTRY=${REGISTRY}
-            IMAGE_TAG=${IMAGE_TAG}
+            DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}
+            IMAGE_TAG_API=${IMAGE_TAG}
+            IMAGE_TAG_WEB=${IMAGE_TAG}
 
             TRAEFIK_NETWORK=${TRAEFIK_NETWORK}
-            CERT_RESOLVER=${CERT_RESOLVER}
             WEB_DOMAIN=${WEB_DOMAIN}
             API_DOMAIN=${API_DOMAIN}
 

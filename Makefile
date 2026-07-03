@@ -8,8 +8,8 @@ SHELL := /bin/bash
 DOCKER_DIR   := infra/docker
 ENV_LOCAL    := $(DOCKER_DIR)/.env.local
 ENV_EXAMPLE  := $(DOCKER_DIR)/.env.local.example
-COMPOSE_LOCAL := docker compose --env-file $(ENV_LOCAL) -f $(DOCKER_DIR)/docker-compose.local.yml
-COMPOSE_VPS   := docker compose -p payorder -f $(DOCKER_DIR)/docker-compose.vps.yml
+COMPOSE_LOCAL := docker compose --env-file $(ENV_LOCAL) -f $(DOCKER_DIR)/docker-compose.payorder.local.yml
+COMPOSE_VPS   := docker compose -p payorder -f $(DOCKER_DIR)/docker-compose.payorder.vps.yml
 
 .DEFAULT_GOAL := help
 .PHONY: help env up down down-volumes restart logs ps build migrate seed test e2e config vps-config
@@ -58,5 +58,5 @@ config: env ## Validate the local compose file
 	$(COMPOSE_LOCAL) config -q && echo "local compose OK"
 
 vps-config: ## Validate the VPS compose file (dry-run, no secrets needed)
-	@test -f $(DOCKER_DIR)/.env.vps || cp $(DOCKER_DIR)/.env.vps.example $(DOCKER_DIR)/.env.vps
+	@test -f $(DOCKER_DIR)/.env.vps || cp $(DOCKER_DIR)/.env.payorder.vps.example $(DOCKER_DIR)/.env.vps
 	$(COMPOSE_VPS) --env-file $(DOCKER_DIR)/.env.vps config -q && echo "vps compose OK"

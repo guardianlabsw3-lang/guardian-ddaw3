@@ -5,7 +5,16 @@ PayOrder **não pode quebrar** esse ambiente. A estratégia: **reusar a rede ext
 Traefik**, isolar nomes/volumes/project, **não expor portas** e configurar roteamento por
 **labels**.
 
-Arquivo: `infra/docker/docker-compose.vps.yml`. Variáveis: `infra/docker/.env.vps.example`.
+> **Nota de implementação (atualização):** o Traefik real da VPS roda com o **provider
+> Docker DESABILITADO** (incompatível com Docker Engine 29.x); labels `traefik.*` são
+> ignoradas. A implementação final roteia pelo **provider de arquivo/diretório** via
+> [`infra/traefik/payorder_dynamic.toml`](../../../infra/traefik/payorder_dynamic.toml)
+> (por container name na rede `proxy`), e as imagens são publicadas no **Docker Hub**
+> (`${DOCKERHUB_USERNAME}/payorder-*`) pelo workflow `.github/workflows/ci.yml`. O esboço
+> com labels abaixo é mantido como registro da spec original.
+
+Arquivo: `infra/docker/docker-compose.payorder.vps.yml`. Variáveis:
+`infra/docker/.env.payorder.vps.example`.
 
 ## 1. Princípios de coexistência
 
@@ -192,7 +201,7 @@ dedicados** com privilégios restritos e schema próprio, documentando o risco.
   routers/labels **prefixados** (`payorder-*`).
 - **Não publicar portas** (`ports:`) em serviços atrás do Traefik.
 - Garantir **nomes de container, volumes e project** únicos (prefixo `payorder`).
-- Validar com `docker compose -p payorder -f docker-compose.vps.yml config` antes de subir.
+- Validar com `docker compose -p payorder -f docker-compose.payorder.vps.yml config` antes de subir.
 - Subir com `-p payorder` para isolar o projeto.
 - **restart: unless-stopped** em serviços de longa duração; `migrate` é one-shot.
 - Healthchecks habilitados; Traefik só roteia para containers saudáveis.
@@ -200,11 +209,11 @@ dedicados** com privilégios restritos e schema próprio, documentando o risco.
 ## 6. Procedimento de deploy
 
 ```bash
-# Na VPS
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml pull
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml run --rm migrate
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml up -d
-docker compose -p payorder -f infra/docker/docker-compose.vps.yml ps
+# Na VPS (ou apenas: IMAGE_TAG=sha-<short> infra/scripts/deploy.sh)
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml pull
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml run --rm migrate
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml up -d
+docker compose -p payorder -f infra/docker/docker-compose.payorder.vps.yml ps
 ```
 
 ## 7. Logs
