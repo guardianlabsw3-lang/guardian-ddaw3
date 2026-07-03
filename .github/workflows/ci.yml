@@ -251,10 +251,14 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           # appleboy/ssh-action only forwards the env vars named here into the remote shell.
           envs: IMAGE_TAG,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
-          script_stop: true
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_PATH }}"
+            if [[ ! -d .git ]]; then
+              echo "ERROR: '${{ secrets.VPS_PATH }}' is not a git checkout." >&2
+              echo "One-time setup on the VPS: git clone <this-repo-url> '${{ secrets.VPS_PATH }}'" >&2
+              exit 1
+            fi
             git fetch --all --prune
             git checkout "${{ github.sha }}"
 
