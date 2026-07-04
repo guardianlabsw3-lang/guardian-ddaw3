@@ -28,7 +28,7 @@
     # (https-redirect is reused from the other product's file — do not redefine.)
     [http.middlewares.payorder-api-cors.headers]
       accessControlAllowCredentials = true
-      accessControlAllowHeaders = ["Authorization", "Content-Type", "Accept", "Accept-Language"]
+      accessControlAllowHeaders = ["Authorization", "Content-Type", "Accept", "Accept-Language", "X-Api-Key", "Idempotency-Key", "X-Request-Id"]
       accessControlAllowMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
       accessControlAllowOriginList = ["https://pow3.guardian-labs.xyz"]
       addVaryHeader = true
