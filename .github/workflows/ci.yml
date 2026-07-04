@@ -281,6 +281,7 @@ jobs:
 
           # --- Secrets (repo Secrets; never printed, never committed) ---
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_PASSWORD_ENCODED: ${{ steps.pgpass.outputs.enc }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           WEBHOOK_SIGNING_SECRET: ${{ secrets.WEBHOOK_SIGNING_SECRET }}
           SOROBAN_ADMIN_SECRET: ${{ secrets.SOROBAN_ADMIN_SECRET }}
@@ -289,7 +290,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           # appleboy/ssh-action only forwards the env vars named here into the remote shell.
-          envs: IMAGE_TAG,VPS_PATH,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,TRAEFIK_DYNAMIC_DIR,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
+          envs: IMAGE_TAG,VPS_PATH,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,TRAEFIK_DYNAMIC_DIR,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,POSTGRES_PASSWORD_ENCODED,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
           script: |
             set -euo pipefail
             cd "${VPS_PATH:?VPS_PATH not set}"
@@ -334,7 +335,7 @@ jobs:
             NODE_ENV=production
             API_PORT=3000
             LOG_LEVEL=info
-            DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@payorder_postgres:5432/${POSTGRES_DB}
+            DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_ENCODED}@payorder_postgres:5432/${POSTGRES_DB}
             REDIS_URL=redis://payorder_redis:6379
 
             APP_BASE_URL=https://${API_DOMAIN}
