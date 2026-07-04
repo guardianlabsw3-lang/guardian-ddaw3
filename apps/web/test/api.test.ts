@@ -236,7 +236,12 @@ describe('PayOrderApi.activateTenant', () => {
   it('throws an ApiError carrying TENANT_WALLET_NOT_SET when no wallet is set', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
-        { error: { code: 'TENANT_WALLET_NOT_SET', message: 'Cannot activate a tenant without a wallet' } },
+        {
+          error: {
+            code: 'TENANT_WALLET_NOT_SET',
+            message: 'Cannot activate a tenant without a wallet',
+          },
+        },
         409,
       ),
     );

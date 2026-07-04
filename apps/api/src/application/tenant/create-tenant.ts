@@ -37,11 +37,9 @@ export class CreateTenant {
 
     if (data.wallet) {
       if (await this.tenants.existsByWallet(data.wallet.publicKey)) {
-        throw conflict(
-          'TENANT_WALLET_CONFLICT',
-          'A tenant with this wallet already exists',
-          { publicKey: data.wallet.publicKey },
-        );
+        throw conflict('TENANT_WALLET_CONFLICT', 'A tenant with this wallet already exists', {
+          publicKey: data.wallet.publicKey,
+        });
       }
       if (!(await this.stellar.exists(data.wallet))) {
         throw unprocessable(
