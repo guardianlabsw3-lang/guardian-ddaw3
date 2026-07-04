@@ -215,6 +215,8 @@ export async function buildE2EHarness(options: E2EHarnessOptions = {}): Promise<
     rateLimiter: new InMemoryRateLimiter({ limit: 10_000, windowMs: 60_000 }),
     idempotencyStore,
     corsOrigins: ['http://localhost:3001'],
+    // The seeded admin is the first-deploy/root admin with full tenant visibility.
+    rootAdminEmails: [adminEmail],
     routes,
   });
 

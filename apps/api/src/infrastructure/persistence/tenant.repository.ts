@@ -91,6 +91,9 @@ export class DrizzleTenantRepository implements TenantRepository {
     if (filter.document) {
       conditions.push(eq(tenants.documentNumber, filter.document));
     }
+    if (filter.adminEmail) {
+      conditions.push(eq(tenants.adminEmail, filter.adminEmail));
+    }
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const limit = filter.limit ?? 50;
     const offset = filter.offset ?? 0;

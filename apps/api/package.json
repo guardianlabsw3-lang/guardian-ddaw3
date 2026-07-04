@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/infrastructure/persistence/migrate.ts",
-    "db:seed": "tsx src/infrastructure/persistence/seed.ts"
+    "db:seed": "tsx src/infrastructure/persistence/seed.ts",
+    "db:bootstrap-admin": "tsx src/infrastructure/persistence/bootstrap-admin.ts"
   },
   "dependencies": {
     "@payorder/shared": "*",

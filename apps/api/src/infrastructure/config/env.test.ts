@@ -88,6 +88,25 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...BASE, JWT_SECRET: 'short' })).toThrow(EnvValidationError);
   });
 
+  it('defaults the root admin to the seed admin (first-deploy admin sees all tenants)', () => {
+    // No explicit list, no seed override → the documented first-deploy admin is root.
+    expect(loadConfig(BASE).auth.rootAdminEmails).toEqual(['admin@payorder.local']);
+    // A configured seed admin becomes the default root, normalized to lower case.
+    expect(
+      loadConfig({ ...BASE, SEED_ADMIN_EMAIL: 'Owner@Acme.LOCAL' }).auth.rootAdminEmails,
+    ).toEqual(['owner@acme.local']);
+  });
+
+  it('parses an explicit ROOT_ADMIN_EMAIL list (overrides the seed default, de-duped)', () => {
+    const config = loadConfig({
+      ...BASE,
+      SEED_ADMIN_EMAIL: 'seed@acme.local',
+      ROOT_ADMIN_EMAIL: 'Root@Acme.local, second@acme.local , root@acme.local , ',
+    });
+    // Explicit list wins over the seed admin; blanks dropped, lower-cased and de-duplicated.
+    expect(config.auth.rootAdminEmails).toEqual(['root@acme.local', 'second@acme.local']);
+  });
+
   it('accepts a valid SOROBAN_ADMIN_SECRET ("S...") seed', () => {
     const config = loadConfig({
       ...BASE,

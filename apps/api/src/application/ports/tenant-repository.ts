@@ -5,6 +5,8 @@ export interface TenantListFilter {
   status?: TenantStatus;
   /** Substring/exact match on the (normalized) document number. */
   document?: string;
+  /** Restrict to tenants onboarded under this admin email (per-admin visibility scoping). */
+  adminEmail?: string;
   limit?: number;
   offset?: number;
 }

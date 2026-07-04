@@ -57,6 +57,9 @@ export class InMemoryTenantRepository implements TenantRepository {
     if (filter.document) {
       items = items.filter((t) => t.document.number.includes(filter.document!));
     }
+    if (filter.adminEmail) {
+      items = items.filter((t) => t.adminEmail === filter.adminEmail);
+    }
     const total = items.length;
     const offset = filter.offset ?? 0;
     return { items: items.slice(offset, offset + (filter.limit ?? 50)), total };

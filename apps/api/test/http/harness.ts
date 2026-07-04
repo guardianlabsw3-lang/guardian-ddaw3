@@ -206,6 +206,8 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     rateLimiter: new InMemoryRateLimiter({ limit: options.rateLimit ?? 1000, windowMs: 60_000 }),
     idempotencyStore,
     corsOrigins: ['http://localhost:3001'],
+    // The seeded admin is the first-deploy/root admin with full tenant visibility.
+    rootAdminEmails: [adminEmail],
     routes,
   });
 

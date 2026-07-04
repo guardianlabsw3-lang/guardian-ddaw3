@@ -12,6 +12,13 @@ export interface Principal {
   readonly scopes: readonly string[];
   /** API keys only: when non-null, the caller may only touch these tenant ids. */
   readonly allowedTenantIds: readonly string[] | null;
+  /** Admins only: the authenticated admin's email (from the JWT); `null` for API keys. */
+  readonly adminEmail: string | null;
+  /**
+   * Admins only: `true` for the bootstrap/root admin(s), who see and manage every tenant.
+   * A non-root admin is scoped to the tenant onboarded under its own email.
+   */
+  readonly isRootAdmin: boolean;
   /** Human-friendly label for audit logs (admin email or api-key name). */
   readonly label: string;
 }

@@ -193,6 +193,7 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
     rateLimiter,
     idempotencyStore,
     corsOrigins: config.api.corsOrigins,
+    rootAdminEmails: config.auth.rootAdminEmails,
     routes,
   });
 

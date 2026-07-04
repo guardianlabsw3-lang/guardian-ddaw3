@@ -4,6 +4,7 @@ import { Base58SlugGenerator, SystemClock, UuidV7IdGenerator } from '../adapters
 import { Argon2PasswordHasher, DrizzleAdminUserRepository } from '../auth/index.js';
 import { loadConfig } from '../config/index.js';
 import { createDb } from './db.js';
+import { ensureAdminUser } from './ensure-admin.js';
 import { DrizzlePaymentOrderRepository, DrizzleTenantRepository } from './index.js';
 
 /**
@@ -52,18 +53,16 @@ async function main(): Promise<void> {
   };
 
   try {
-    // 1. Admin user (idempotent by email).
-    const existingAdmin = await adminUsers.findByEmail(SEED.adminEmail);
-    if (existingAdmin) {
-      console.log(`• admin user already exists: ${SEED.adminEmail}`);
-    } else {
-      await adminUsers.create({
-        email: SEED.adminEmail,
-        passwordHash: await hasher.hash(SEED.adminPassword),
-        role: 'admin',
-      });
-      console.log(`✓ created admin user: ${SEED.adminEmail} (password: ${SEED.adminPassword})`);
-    }
+    // 1. Admin user (idempotent by email; shares the production bootstrap helper).
+    const admin = await ensureAdminUser(adminUsers, hasher, {
+      email: SEED.adminEmail,
+      password: SEED.adminPassword,
+    });
+    console.log(
+      admin.created
+        ? `✓ created admin user: ${admin.email} (password: ${SEED.adminPassword})`
+        : `• admin user already exists: ${admin.email}`,
+    );
 
     // 2. Tenant (idempotent by document) with wallet, activated.
     let tenantId: string;
