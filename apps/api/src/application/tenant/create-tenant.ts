@@ -35,12 +35,19 @@ export class CreateTenant {
       });
     }
 
-    if (data.wallet && !(await this.stellar.exists(data.wallet))) {
-      throw unprocessable(
-        'STELLAR_ACCOUNT_NOT_FOUND',
-        'The wallet does not exist on the Stellar network',
-        { publicKey: data.wallet.publicKey },
-      );
+    if (data.wallet) {
+      if (await this.tenants.existsByWallet(data.wallet.publicKey)) {
+        throw conflict('TENANT_WALLET_CONFLICT', 'A tenant with this wallet already exists', {
+          publicKey: data.wallet.publicKey,
+        });
+      }
+      if (!(await this.stellar.exists(data.wallet))) {
+        throw unprocessable(
+          'STELLAR_ACCOUNT_NOT_FOUND',
+          'The wallet does not exist on the Stellar network',
+          { publicKey: data.wallet.publicKey },
+        );
+      }
     }
 
     const slug = await this.ensureUniqueSlug(data.name);

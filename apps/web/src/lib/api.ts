@@ -129,6 +129,20 @@ export class PayOrderApi {
     return parse<Tenant>(res);
   }
 
+  /**
+   * Activate a tenant so it can receive charges. Requires a wallet that exists on the Stellar
+   * network — the API returns 409 `TENANT_WALLET_NOT_SET` when no wallet is registered and
+   * 422 `STELLAR_ACCOUNT_NOT_FOUND` when the wallet is not found on-chain. See
+   * `POST /api/tenants/{id}/activate`.
+   */
+  async activateTenant(id: string): Promise<Tenant> {
+    const res = await fetch(this.url(`/tenants/${id}/activate`), {
+      method: 'POST',
+      headers: this.headers(),
+    });
+    return parse<Tenant>(res);
+  }
+
   async updateTenantWallet(id: string, publicKey: string): Promise<Tenant> {
     const res = await fetch(this.url(`/tenants/${id}/wallet`), {
       method: 'PUT',

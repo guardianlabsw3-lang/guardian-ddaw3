@@ -219,6 +219,41 @@ describe('PayOrderApi.updateTenantWallet', () => {
   });
 });
 
+describe('PayOrderApi.activateTenant', () => {
+  it('POSTs to the tenant activate endpoint with the Bearer token', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'tenant-1', status: 'ACTIVE' }));
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    const result = await api.activateTenant('tenant-1');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/tenants/tenant-1/activate');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jwt-token');
+    expect(result.status).toBe('ACTIVE');
+  });
+
+  it('throws an ApiError carrying TENANT_WALLET_NOT_SET when no wallet is set', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error: {
+            code: 'TENANT_WALLET_NOT_SET',
+            message: 'Cannot activate a tenant without a wallet',
+          },
+        },
+        409,
+      ),
+    );
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    await expect(api.activateTenant('tenant-1')).rejects.toMatchObject({
+      code: 'TENANT_WALLET_NOT_SET',
+      status: 409,
+    });
+  });
+});
+
 describe('ApiError', () => {
   it('is an Error with status and code', () => {
     const err = new ApiError(404, 'NOT_FOUND', 'missing');
