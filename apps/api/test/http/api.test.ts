@@ -412,6 +412,78 @@ describe('PayOrder REST API (HTTP integration)', () => {
       expect(types).toEqual(['created', 'registered']);
     });
 
+    it('scopes a non-root admin to its own tenant, root sees all', async () => {
+      const h = await buildHarness();
+      const rootTenantId = await seedActiveTenant(h, WALLET);
+      const rootOrder = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'root-order' },
+        body: { tenant_id: rootTenantId, amount: '10' },
+      });
+      const rootOrderId = (rootOrder.body as { id: string }).id;
+      await activateOrder(h, rootOrderId);
+
+      // A second admin self-registers and onboards its own wallet → its own tenant.
+      const reg = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'member@acme.test', password: 'member-secret-pass' },
+      });
+      const memberToken = (reg.body as { access_token: string }).access_token;
+      const memberAuth = { authorization: `Bearer ${memberToken}` };
+      const onboarded = await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: memberAuth,
+        body: { stellar_wallet_public_key: VALID_KEYS[1], stellar_network: 'TESTNET' },
+      });
+      const memberTenantId = (onboarded.body as { id: string }).id;
+      await h.request({
+        method: 'POST',
+        path: `/api/tenants/${memberTenantId}/activate`,
+        headers: memberAuth,
+      });
+      const memberOrder = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'member-order' },
+        body: { tenant_id: memberTenantId, amount: '20' },
+      });
+      const memberOrderId = (memberOrder.body as { id: string }).id;
+      await activateOrder(h, memberOrderId);
+
+      // The member's listing (even without a tenant_id filter) only ever contains its own
+      // tenant's orders, never the root admin's.
+      const memberList = await h.request({
+        method: 'GET',
+        path: '/api/payment-orders',
+        headers: memberAuth,
+      });
+      const memberItems = (memberList.body as { items: { id: string }[] }).items;
+      expect(memberItems).toHaveLength(1);
+      expect(memberItems[0]!.id).toBe(memberOrderId);
+
+      // And cannot read, check status/events, or resend webhooks for another tenant's order.
+      for (const path of [
+        `/api/payment-orders/${rootOrderId}`,
+        `/api/payment-orders/${rootOrderId}/status`,
+        `/api/payment-orders/${rootOrderId}/events`,
+      ]) {
+        const res = await h.request({ method: 'GET', path, headers: memberAuth });
+        expect(res.status).toBe(403);
+        expect((res.body as { error: { code: string } }).error.code).toBe('FORBIDDEN_TENANT');
+      }
+
+      // The root admin still sees every tenant's orders.
+      const rootList = await h.request({
+        method: 'GET',
+        path: '/api/payment-orders',
+        headers: adminAuth(h),
+      });
+      expect((rootList.body as { total: number }).total).toBe(2);
+    });
+
     it('cancels an ACTIVE order (admin) and dispatches a webhook', async () => {
       const h = await buildHarness();
       const tenantId = await seedActiveTenant(h, WALLET);

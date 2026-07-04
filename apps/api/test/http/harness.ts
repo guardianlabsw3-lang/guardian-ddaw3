@@ -185,6 +185,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
       cancel: new CancelPaymentOrder({ orders, clock, publicWebUrl: PUBLIC_WEB_URL, webhooks }),
       resend: new ResendWebhook(orders, webhooks),
       audit,
+      tenants,
     }),
     ...publicRoutes({
       publicOrder: new GetPublicPaymentOrder({
