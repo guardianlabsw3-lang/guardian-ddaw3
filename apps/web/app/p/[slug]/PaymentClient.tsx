@@ -217,8 +217,7 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
         {isActive && !isPaid && confirming ? (
           <div className="stack">
             <p className="muted">
-              <span className="spinner" /> Transação enviada, aguardando confirmação do
-              pagamento…
+              <span className="spinner" /> Transação enviada, aguardando confirmação do pagamento…
             </p>
           </div>
         ) : null}
