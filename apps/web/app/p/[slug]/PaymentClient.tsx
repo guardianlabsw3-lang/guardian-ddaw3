@@ -37,6 +37,7 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -44,10 +45,30 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
     try {
       const fresh = await new PayOrderApi(config.apiBaseUrl).getPublicOrder(slug);
       setOrder(fresh);
+      return fresh;
     } catch {
       setLoadError('Não foi possível carregar a cobrança. Tente atualizar.');
+      return null;
     } finally {
       setLoading(false);
+    }
+  }
+
+  // The on-chain payment is confirmed by Freighter/Soroban RPC immediately, but the backend
+  // only learns about it from a periodic reconciliation sweep (~30s). Poll the public status
+  // endpoint until it reflects PAID so the page updates itself instead of requiring a manual
+  // browser refresh.
+  async function pollUntilPaid() {
+    setConfirming(true);
+    const deadline = Date.now() + 90_000;
+    try {
+      while (Date.now() < deadline) {
+        const fresh = await refresh();
+        if (fresh?.status === 'PAID') return;
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+      }
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -86,7 +107,7 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
         asset: { code: order.asset_code, issuer: order.asset_issuer },
       });
       setTxHash(result.txHash);
-      await refresh();
+      await pollUntilPaid();
     } catch (err) {
       setPayError(errorMessage(err));
     } finally {
@@ -193,7 +214,15 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
           <p className="muted">Esta cobrança não está mais disponível para pagamento.</p>
         ) : null}
 
-        {isActive && !isPaid ? (
+        {isActive && !isPaid && confirming ? (
+          <div className="stack">
+            <p className="muted">
+              <span className="spinner" /> Transação enviada, aguardando confirmação do pagamento…
+            </p>
+          </div>
+        ) : null}
+
+        {isActive && !isPaid && !confirming ? (
           <div className="stack">
             {!wallet ? (
               <button
