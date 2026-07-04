@@ -32,6 +32,7 @@ import {
 } from '../../src/infrastructure/auth/index.js';
 import { InMemoryOrderRegistrationQueue } from '../../src/infrastructure/queue/index.js';
 import { InMemoryRateLimiter } from '../../src/infrastructure/ratelimit/index.js';
+import { StubStellarAccountVerifier } from '../fakes.js';
 import {
   authRoutes,
   createApp,
@@ -112,6 +113,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
   const clock = new SystemClock();
   const ids = new UuidV7IdGenerator();
   const slugs = new Base58SlugGenerator();
+  const stellarAccounts = new StubStellarAccountVerifier();
   const queue = new InMemoryOrderRegistrationQueue();
   const tokens = new HmacJwtService(JWT_SECRET);
   const hasher = new Argon2PasswordHasher();
@@ -144,8 +146,8 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     allowedTenantIds: options.apiKeyTenants ?? null,
   });
 
-  const createTenant = new CreateTenant(tenants, ids, slugs, clock);
-  const assignWallet = new AssignTenantWallet(tenants, orders, clock);
+  const createTenant = new CreateTenant(tenants, ids, slugs, clock, stellarAccounts);
+  const assignWallet = new AssignTenantWallet(tenants, orders, clock, stellarAccounts);
 
   const routes = [
     ...authRoutes({
@@ -156,7 +158,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
       create: createTenant,
       list: new ListTenants(tenants),
       get: new GetTenant(tenants),
-      activate: new ActivateTenant(tenants, clock),
+      activate: new ActivateTenant(tenants, clock, stellarAccounts),
       deactivate: new DeactivateTenant(tenants, clock),
       assignWallet,
       getWallet: new GetTenantWallet(tenants),

@@ -15,6 +15,7 @@ import {
   InMemoryTenantRepository,
   StubIdGenerator,
   StubSlugGenerator,
+  StubStellarAccountVerifier,
 } from '../../../test/fakes.js';
 import {
   FIXED_NOW,
@@ -39,17 +40,20 @@ describe('Tenant use cases', () => {
   let tenants: InMemoryTenantRepository;
   let orders: InMemoryPaymentOrderRepository;
   let clock: FixedClock;
+  let stellar: StubStellarAccountVerifier;
   let create: CreateTenant;
 
   beforeEach(() => {
     tenants = new InMemoryTenantRepository();
     orders = new InMemoryPaymentOrderRepository();
     clock = new FixedClock(FIXED_NOW);
+    stellar = new StubStellarAccountVerifier();
     create = new CreateTenant(
       tenants,
       new StubIdGenerator('tenant'),
       new StubSlugGenerator(),
       clock,
+      stellar,
     );
   });
 
@@ -66,6 +70,15 @@ describe('Tenant use cases', () => {
       const view = await create.execute(validInput({ wallet: wallet() }));
       expect(view.wallet?.publicKey).toBe(VALID_KEYS[0]);
       expect(view.status).toBe('INACTIVE');
+    });
+
+    it('rejects a wallet that does not exist on Stellar (STELLAR_ACCOUNT_NOT_FOUND, 422)', async () => {
+      stellar.deny(VALID_KEYS[0]!);
+      await expectAppError(
+        create.execute(validInput({ wallet: wallet() })),
+        'STELLAR_ACCOUNT_NOT_FOUND',
+        422,
+      );
     });
 
     it('rejects a duplicate document with TENANT_DOCUMENT_CONFLICT (409)', async () => {
@@ -104,26 +117,36 @@ describe('Tenant use cases', () => {
   describe('ActivateTenant / DeactivateTenant', () => {
     it('activates only when a wallet is present', async () => {
       const created = await create.execute(validInput());
-      const activate = new ActivateTenant(tenants, clock);
+      const activate = new ActivateTenant(tenants, clock, stellar);
 
       await expectAppError(activate.execute(created.id), 'TENANT_WALLET_NOT_SET', 409);
 
-      const assign = new AssignTenantWallet(tenants, orders, clock);
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
       await assign.execute(created.id, wallet());
       const activated = await activate.execute(created.id);
       expect(activated.status).toBe('ACTIVE');
     });
 
+    it('refuses to activate when the wallet no longer exists on Stellar', async () => {
+      const created = await create.execute(validInput({ wallet: wallet() }));
+      stellar.deny(VALID_KEYS[0]!);
+      await expectAppError(
+        new ActivateTenant(tenants, clock, stellar).execute(created.id),
+        'STELLAR_ACCOUNT_NOT_FOUND',
+        422,
+      );
+    });
+
     it('deactivates an active tenant', async () => {
       const created = await create.execute(validInput({ wallet: wallet() }));
-      await new ActivateTenant(tenants, clock).execute(created.id);
+      await new ActivateTenant(tenants, clock, stellar).execute(created.id);
       const view = await new DeactivateTenant(tenants, clock).execute(created.id);
       expect(view.status).toBe('INACTIVE');
     });
 
     it('returns TENANT_NOT_FOUND (404) for an unknown id', async () => {
       await expectAppError(
-        new ActivateTenant(tenants, clock).execute('missing'),
+        new ActivateTenant(tenants, clock, stellar).execute('missing'),
         'TENANT_NOT_FOUND',
         404,
       );
@@ -133,7 +156,7 @@ describe('Tenant use cases', () => {
   describe('AssignTenantWallet', () => {
     it('assigns a valid Testnet wallet', async () => {
       const created = await create.execute(validInput());
-      const assign = new AssignTenantWallet(tenants, orders, clock);
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
       const view = await assign.execute(created.id, wallet());
       expect(view.publicKey).toBe(VALID_KEYS[0]);
       expect(view.network).toBe('TESTNET');
@@ -141,7 +164,7 @@ describe('Tenant use cases', () => {
 
     it('rejects an invalid key / non-Testnet network', async () => {
       const created = await create.execute(validInput());
-      const assign = new AssignTenantWallet(tenants, orders, clock);
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
       await expectAppError(
         assign.execute(created.id, wallet('NOT-A-KEY')),
         'INVALID_STELLAR_PUBLIC_KEY',
@@ -154,13 +177,20 @@ describe('Tenant use cases', () => {
       );
     });
 
+    it('rejects a wallet that does not exist on Stellar (STELLAR_ACCOUNT_NOT_FOUND, 422)', async () => {
+      const created = await create.execute(validInput());
+      stellar.deny(VALID_KEYS[0]!);
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
+      await expectAppError(assign.execute(created.id, wallet()), 'STELLAR_ACCOUNT_NOT_FOUND', 422);
+    });
+
     it('blocks a wallet change while open orders exist (RN-09)', async () => {
       const created = await create.execute(validInput({ wallet: wallet() }));
-      await new ActivateTenant(tenants, clock).execute(created.id);
+      await new ActivateTenant(tenants, clock, stellar).execute(created.id);
       // an open (CREATED) order for this tenant
       await orders.save(buildOrder({ tenantId: created.id }));
 
-      const assign = new AssignTenantWallet(tenants, orders, clock);
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
       await expectAppError(
         assign.execute(created.id, wallet(VALID_KEYS[1])),
         'WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS',
@@ -170,9 +200,9 @@ describe('Tenant use cases', () => {
 
     it('allows re-assigning the same wallet even with open orders (no-op change)', async () => {
       const created = await create.execute(validInput({ wallet: wallet() }));
-      await new ActivateTenant(tenants, clock).execute(created.id);
+      await new ActivateTenant(tenants, clock, stellar).execute(created.id);
       await orders.save(buildOrder({ tenantId: created.id }));
-      const assign = new AssignTenantWallet(tenants, orders, clock);
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
       const view = await assign.execute(created.id, wallet(VALID_KEYS[0]));
       expect(view.publicKey).toBe(VALID_KEYS[0]);
     });
@@ -180,7 +210,11 @@ describe('Tenant use cases', () => {
 
   describe('OnboardTenantWallet', () => {
     const onboard = () =>
-      new OnboardTenantWallet(tenants, create, new AssignTenantWallet(tenants, orders, clock));
+      new OnboardTenantWallet(
+        tenants,
+        create,
+        new AssignTenantWallet(tenants, orders, clock, stellar),
+      );
 
     it('auto-creates a tenant seeded from the admin email on first connect', async () => {
       const view = await onboard().execute('owner@acme.test', wallet());

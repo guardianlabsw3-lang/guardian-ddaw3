@@ -1,4 +1,5 @@
 import { ActivateTenant, AssignTenantWallet, CreateTenant } from '../../application/index.js';
+import type { StellarAccountVerifier } from '../../application/ports/index.js';
 import { Base58SlugGenerator, SystemClock, UuidV7IdGenerator } from '../adapters/index.js';
 import { Argon2PasswordHasher, DrizzleAdminUserRepository } from '../auth/index.js';
 import { loadConfig } from '../config/index.js';
@@ -41,6 +42,14 @@ async function main(): Promise<void> {
   const orders = new DrizzlePaymentOrderRepository(handle.db);
   const adminUsers = new DrizzleAdminUserRepository(handle.db);
   const hasher = new Argon2PasswordHasher();
+  // The seed's placeholder wallet is not required to be a funded Testnet account (see SEED note
+  // above), so on-chain verification is bypassed here — unlike the live API, which verifies
+  // against Horizon before storing or activating a wallet.
+  const stellarAccounts: StellarAccountVerifier = {
+    async exists() {
+      return true;
+    },
+  };
 
   try {
     // 1. Admin user (idempotent by email).
@@ -63,7 +72,7 @@ async function main(): Promise<void> {
       tenantId = existingTenant.id;
       console.log(`• tenant already exists: ${existingTenant.slug} (${tenantId})`);
     } else {
-      const created = await new CreateTenant(tenants, ids, slugs, clock).execute({
+      const created = await new CreateTenant(tenants, ids, slugs, clock, stellarAccounts).execute({
         name: SEED.tenantName,
         legalName: SEED.tenantLegalName,
         document: { type: 'CNPJ', number: SEED.tenantDocument },
@@ -74,13 +83,13 @@ async function main(): Promise<void> {
       console.log(`✓ created tenant: ${created.slug} (${tenantId})`);
     }
 
-    await new AssignTenantWallet(tenants, orders, clock).execute(tenantId, {
+    await new AssignTenantWallet(tenants, orders, clock, stellarAccounts).execute(tenantId, {
       publicKey: SEED.walletPublicKey,
       network: 'TESTNET',
     });
     console.log(`✓ tenant wallet set: ${SEED.walletPublicKey}`);
 
-    const activated = await new ActivateTenant(tenants, clock).execute(tenantId);
+    const activated = await new ActivateTenant(tenants, clock, stellarAccounts).execute(tenantId);
     console.log(`✓ tenant status: ${activated.status}`);
 
     console.log('\nSeed complete. Create an order with just this tenant + an amount.');

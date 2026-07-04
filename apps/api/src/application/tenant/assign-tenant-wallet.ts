@@ -1,20 +1,27 @@
 import { AssignTenantWalletInputSchema } from '@payorder/shared';
-import type { Clock, PaymentOrderRepository, TenantRepository } from '../ports/index.js';
-import { conflict, notFound, validate } from '../shared/errors.js';
+import type {
+  Clock,
+  PaymentOrderRepository,
+  StellarAccountVerifier,
+  TenantRepository,
+} from '../ports/index.js';
+import { conflict, notFound, unprocessable, validate } from '../shared/errors.js';
 import { toTenantWalletView, type TenantWalletView } from './views.js';
 
 /**
  * UC-02 — register/update the tenant's destination wallet (spec 06). The wallet is
  * validated as a Testnet StrKey (shared schema → `INVALID_STELLAR_PUBLIC_KEY` /
- * `UNSUPPORTED_NETWORK`). RN-09: a change is blocked while the tenant has open
- * (`CREATED`/`ACTIVE`) orders (`WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS`). Historical orders
- * keep their copied wallet regardless (RN-03).
+ * `UNSUPPORTED_NETWORK`) and then verified to actually exist on-chain via Horizon
+ * (`STELLAR_ACCOUNT_NOT_FOUND`), so a well-formed but non-existent account is never stored.
+ * RN-09: a change is blocked while the tenant has open (`CREATED`/`ACTIVE`) orders
+ * (`WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS`). Historical orders keep their copied wallet (RN-03).
  */
 export class AssignTenantWallet {
   constructor(
     private readonly tenants: TenantRepository,
     private readonly orders: PaymentOrderRepository,
     private readonly clock: Clock,
+    private readonly stellar: StellarAccountVerifier,
   ) {}
 
   async execute(tenantId: string, input: unknown): Promise<TenantWalletView> {
@@ -23,6 +30,14 @@ export class AssignTenantWallet {
     const tenant = await this.tenants.findById(tenantId);
     if (!tenant) {
       throw notFound('TENANT_NOT_FOUND', 'Tenant not found', { id: tenantId });
+    }
+
+    if (!(await this.stellar.exists(wallet))) {
+      throw unprocessable(
+        'STELLAR_ACCOUNT_NOT_FOUND',
+        'The wallet does not exist on the Stellar network',
+        { publicKey: wallet.publicKey },
+      );
     }
 
     const isChange = tenant.wallet === null || tenant.wallet.publicKey !== wallet.publicKey;
