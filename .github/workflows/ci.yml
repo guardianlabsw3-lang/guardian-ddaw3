@@ -261,8 +261,10 @@ jobs:
           # Directory watched by the existing (file-provider) Traefik. Override with the repo
           # variable TRAEFIK_DYNAMIC_DIR if yours differs.
           TRAEFIK_DYNAMIC_DIR: ${{ vars.TRAEFIK_DYNAMIC_DIR }}
-          # Public on-chain (Testnet) contract address — not a secret, but env-specific.
-          SOROBAN_CONTRACT_ID: ${{ vars.SOROBAN_CONTRACT_ID }}
+          # Public on-chain (Testnet) contract address — env-specific. Accept it from a repo
+          # VARIABLE or a SECRET (same fallback as DOCKERHUB_USERNAME) so it resolves whichever
+          # tab it was created under.
+          SOROBAN_CONTRACT_ID: ${{ vars.SOROBAN_CONTRACT_ID || secrets.SOROBAN_CONTRACT_ID }}
 
           # --- Secrets (repo Secrets; never printed, never committed) ---
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -285,7 +287,7 @@ jobs:
             : "${JWT_SECRET:?set the JWT_SECRET repo secret}"
             : "${WEBHOOK_SIGNING_SECRET:?set the WEBHOOK_SIGNING_SECRET repo secret}"
             : "${SOROBAN_ADMIN_SECRET:?set the SOROBAN_ADMIN_SECRET repo secret}"
-            : "${SOROBAN_CONTRACT_ID:?set the SOROBAN_CONTRACT_ID repo variable}"
+            : "${SOROBAN_CONTRACT_ID:?set the SOROBAN_CONTRACT_ID repo variable or secret}"
 
             # --- Non-secret config: repo Variables override these production defaults ---
             WEB_DOMAIN="${WEB_DOMAIN:-pow3.guardian-labs.xyz}"
