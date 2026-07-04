@@ -233,6 +233,19 @@ jobs:
         id: tag
         run: echo "image_tag=sha-$(echo "${GITHUB_SHA}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
+      # Percent-encode the DB password for use inside DATABASE_URL. A raw password from e.g.
+      # `openssl rand -base64` can contain URL-special chars (/, +, =) that make postgres-js's
+      # `new URL(...)` throw "Invalid URL". porsager/postgres decodes the userinfo back at
+      # connect time, so the encoded form still authenticates against the raw DB password.
+      - name: URL-encode the DB password
+        id: pgpass
+        env:
+          RAW: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          ENC=$(python3 -c "import os,urllib.parse; print(urllib.parse.quote(os.environ['RAW'], safe=''))")
+          echo "::add-mask::${ENC}"
+          echo "enc=${ENC}" >> "$GITHUB_OUTPUT"
+
       # Copy ONLY the compose file + the Traefik route toml to the VPS (flattened into
       # VPS_PATH). strip_components drops the infra/docker & infra/traefik prefixes so both
       # land directly in VPS_PATH; the SSH step below renders .env.vps beside them.
@@ -268,6 +281,8 @@ jobs:
 
           # --- Secrets (repo Secrets; never printed, never committed) ---
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          # Percent-encoded form of POSTGRES_PASSWORD, safe to embed in DATABASE_URL.
+          POSTGRES_PASSWORD_ENC: ${{ steps.pgpass.outputs.enc }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           WEBHOOK_SIGNING_SECRET: ${{ secrets.WEBHOOK_SIGNING_SECRET }}
           SOROBAN_ADMIN_SECRET: ${{ secrets.SOROBAN_ADMIN_SECRET }}
@@ -276,7 +291,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           # appleboy/ssh-action only forwards the env vars named here into the remote shell.
-          envs: IMAGE_TAG,VPS_PATH,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,TRAEFIK_DYNAMIC_DIR,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
+          envs: IMAGE_TAG,VPS_PATH,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,TRAEFIK_DYNAMIC_DIR,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,POSTGRES_PASSWORD_ENC,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
           script: |
             set -euo pipefail
             cd "${VPS_PATH:?VPS_PATH not set}"
@@ -284,6 +299,7 @@ jobs:
             # --- Fail fast if a required secret was not configured in GitHub ---
             : "${DOCKERHUB_USERNAME:?set the DOCKERHUB_USERNAME repo variable (or secret)}"
             : "${POSTGRES_PASSWORD:?set the POSTGRES_PASSWORD repo secret}"
+            : "${POSTGRES_PASSWORD_ENC:?POSTGRES_PASSWORD_ENC not forwarded (see the URL-encode step)}"
             : "${JWT_SECRET:?set the JWT_SECRET repo secret}"
             : "${WEBHOOK_SIGNING_SECRET:?set the WEBHOOK_SIGNING_SECRET repo secret}"
             : "${SOROBAN_ADMIN_SECRET:?set the SOROBAN_ADMIN_SECRET repo secret}"
@@ -321,7 +337,7 @@ jobs:
             NODE_ENV=production
             API_PORT=3000
             LOG_LEVEL=info
-            DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@payorder_postgres:5432/${POSTGRES_DB}
+            DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD_ENC}@payorder_postgres:5432/${POSTGRES_DB}
             REDIS_URL=redis://payorder_redis:6379
 
             APP_BASE_URL=https://${API_DOMAIN}
