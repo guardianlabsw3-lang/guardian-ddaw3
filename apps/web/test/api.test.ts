@@ -71,6 +71,47 @@ describe('PayOrderApi.login', () => {
   });
 });
 
+describe('PayOrderApi.register', () => {
+  it('POSTs the credentials and maps the access_token to the stored token', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          access_token: 'jwt-new',
+          token_type: 'Bearer',
+          expires_in: 3600,
+          admin: { id: 'a2', email: 'new@test', role: 'admin' },
+        },
+        201,
+      ),
+    );
+
+    const api = new PayOrderApi('https://api.test');
+    const result = await api.register('new@test', 'sup3r-secret-pass');
+
+    expect(result).toEqual({ token: 'jwt-new' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/auth/register');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      email: 'new@test',
+      password: 'sup3r-secret-pass',
+    });
+  });
+
+  it('throws an ApiError carrying EMAIL_ALREADY_REGISTERED on a duplicate', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: { code: 'EMAIL_ALREADY_REGISTERED', message: 'taken' } }, 409),
+    );
+
+    const api = new PayOrderApi('https://api.test');
+    await expect(api.register('dup@test', 'sup3r-secret-pass')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 409,
+      code: 'EMAIL_ALREADY_REGISTERED',
+    });
+  });
+});
+
 describe('PayOrderApi.listTenants', () => {
   it('unwraps the { items, total } envelope returned by the API', async () => {
     const tenants = [{ id: 'tenant-1' }, { id: 'tenant-2' }];

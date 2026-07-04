@@ -43,6 +43,25 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registro de admin (cria conta e emite JWT)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginResponse" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
   /health:
     get:
       tags: [Health]
@@ -506,6 +525,12 @@ components:
       properties:
         email: { type: string, format: email }
         password: { type: string }
+      required: [email, password]
+    RegisterRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
       required: [email, password]
     LoginResponse:
       type: object
