@@ -55,6 +55,7 @@ export class CreatePaymentOrder {
   ): Promise<PaymentOrderView> {
     this.rejectWalletFields(rawInput);
     const input = validate(CreatePaymentOrderInputSchema, rawInput);
+    this.rejectPastDueDate(input);
 
     const tenant = await this.resolveTenant(input);
     const allowed = options.allowedTenantIds;
@@ -108,6 +109,20 @@ export class CreatePaymentOrder {
     await this.deps.registrationQueue.enqueueRegister({ paymentOrderId: order.id, correlationId });
 
     return toPaymentOrderView(order, this.deps.publicWebUrl);
+  }
+
+  /** `due_date` must not be before today (spec 08 §3.1 rule 6 — `DUE_DATE_IN_PAST`). */
+  private rejectPastDueDate(input: CreatePaymentOrderInput): void {
+    if (!input.dueDate) {
+      return;
+    }
+    const today = this.deps.clock.now().toISOString().slice(0, 10);
+    if (input.dueDate.slice(0, 10) < today) {
+      throw unprocessable('DUE_DATE_IN_PAST', 'Due date must not be before today', {
+        dueDate: input.dueDate,
+        today,
+      });
+    }
   }
 
   /** RN-02: reject any wallet field on the order payload (`WALLET_NOT_ALLOWED_ON_ORDER`). */
