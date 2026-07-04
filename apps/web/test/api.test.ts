@@ -112,6 +112,26 @@ describe('PayOrderApi.register', () => {
   });
 });
 
+describe('PayOrderApi.onboardWallet', () => {
+  it('POSTs the connected public key with the Testnet network and Bearer token', async () => {
+    const tenant = { id: 'tenant-1', stellar_wallet_public_key: 'GABC' };
+    fetchMock.mockResolvedValueOnce(jsonResponse(tenant));
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    const result = await api.onboardWallet('GABC');
+
+    expect(result).toEqual(tenant);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/onboarding/wallet');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jwt-token');
+    expect(JSON.parse(init.body as string)).toEqual({
+      stellar_wallet_public_key: 'GABC',
+      stellar_network: 'TESTNET',
+    });
+  });
+});
+
 describe('PayOrderApi.listTenants', () => {
   it('unwraps the { items, total } envelope returned by the API', async () => {
     const tenants = [{ id: 'tenant-1' }, { id: 'tenant-2' }];

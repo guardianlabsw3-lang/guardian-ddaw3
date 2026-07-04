@@ -14,6 +14,7 @@ import {
   ListPaymentOrders,
   ListTenants,
   LoginAdmin,
+  OnboardTenantWallet,
   RegisterAdmin,
   ResendWebhook,
   WebhookDispatcher,
@@ -58,6 +59,7 @@ import {
   createApp,
   createHttpServer,
   healthRoutes,
+  onboardingRoutes,
   paymentOrderRoutes,
   publicRoutes,
   tenantRoutes,
@@ -121,19 +123,26 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
     logger,
   });
 
+  const createTenant = new CreateTenant(tenants, ids, slugs, clock);
+  const assignWallet = new AssignTenantWallet(tenants, orders, clock);
+
   const routes = [
     ...authRoutes({
       login: new LoginAdmin({ admins: adminUsers, hasher, tokens }),
       register: new RegisterAdmin({ admins: adminUsers, hasher, tokens }),
     }),
     ...tenantRoutes({
-      create: new CreateTenant(tenants, ids, slugs, clock),
+      create: createTenant,
       list: new ListTenants(tenants),
       get: new GetTenant(tenants),
       activate: new ActivateTenant(tenants, clock),
       deactivate: new DeactivateTenant(tenants, clock),
-      assignWallet: new AssignTenantWallet(tenants, orders, clock),
+      assignWallet,
       getWallet: new GetTenantWallet(tenants),
+      audit,
+    }),
+    ...onboardingRoutes({
+      onboardWallet: new OnboardTenantWallet(tenants, createTenant, assignWallet),
       audit,
     }),
     ...paymentOrderRoutes({

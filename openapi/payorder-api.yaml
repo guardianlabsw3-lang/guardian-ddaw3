@@ -180,6 +180,30 @@ paths:
         "409": { $ref: "#/components/responses/Conflict" }
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
+  /onboarding/wallet:
+    post:
+      tags: [Tenants]
+      summary: Conecta a wallet do admin recém-registrado ao seu tenant
+      description: >
+        Fluxo de auto-onboarding: após o registro, o painel solicita a conexão da carteira e
+        salva a chave pública no tenant do admin (criando o tenant na primeira conexão, com
+        nome/documento provisórios editáveis). O tenant é resolvido pelo e-mail do admin
+        autenticado; a wallet nunca é aceita de outra origem.
+      security: [ { AdminJWT: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TenantWallet" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tenant" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
   /payment-orders:
     post:
       tags: [Payment Orders]

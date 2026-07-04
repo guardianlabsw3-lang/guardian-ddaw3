@@ -7,6 +7,7 @@ import {
   GetTenant,
   GetTenantWallet,
   ListTenants,
+  OnboardTenantWallet,
 } from './index.js';
 import {
   FixedClock,
@@ -174,6 +175,43 @@ describe('Tenant use cases', () => {
       const assign = new AssignTenantWallet(tenants, orders, clock);
       const view = await assign.execute(created.id, wallet(VALID_KEYS[0]));
       expect(view.publicKey).toBe(VALID_KEYS[0]);
+    });
+  });
+
+  describe('OnboardTenantWallet', () => {
+    const onboard = () =>
+      new OnboardTenantWallet(tenants, create, new AssignTenantWallet(tenants, orders, clock));
+
+    it('auto-creates a tenant seeded from the admin email on first connect', async () => {
+      const view = await onboard().execute('owner@acme.test', wallet());
+
+      expect(view.adminEmail).toBe('owner@acme.test');
+      expect(view.name).toBe('owner');
+      expect(view.document).toEqual({ type: 'OTHER', number: 'owner@acme.test' });
+      expect(view.wallet?.publicKey).toBe(VALID_KEYS[0]);
+      expect(view.status).toBe('INACTIVE');
+      expect(await tenants.findByAdminEmail('owner@acme.test')).not.toBeNull();
+    });
+
+    it('re-assigns the wallet to the existing tenant on a later connect (no duplicate)', async () => {
+      const first = await onboard().execute('owner@acme.test', wallet(VALID_KEYS[0]));
+      const second = await onboard().execute('owner@acme.test', wallet(VALID_KEYS[1]));
+
+      expect(second.id).toBe(first.id);
+      expect(second.wallet?.publicKey).toBe(VALID_KEYS[1]);
+      expect((await new ListTenants(tenants).execute({})).total).toBe(1);
+    });
+
+    it('rejects an invalid wallet with the shared validation code', async () => {
+      await expectAppError(
+        onboard().execute('owner@acme.test', wallet('NOT-A-KEY')),
+        'INVALID_STELLAR_PUBLIC_KEY',
+        422,
+      );
+    });
+
+    it('rejects an invalid admin email', async () => {
+      await expectAppError(onboard().execute('nope', wallet()), 'INVALID_EMAIL', 422);
     });
   });
 

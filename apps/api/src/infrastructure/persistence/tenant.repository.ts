@@ -55,6 +55,16 @@ export class DrizzleTenantRepository implements TenantRepository {
     return row ? tenantFromRow(row) : null;
   }
 
+  async findByAdminEmail(adminEmail: string): Promise<Tenant | null> {
+    const [row] = await this.db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.adminEmail, adminEmail))
+      .orderBy(sql`${tenants.createdAt} asc`)
+      .limit(1);
+    return row ? tenantFromRow(row) : null;
+  }
+
   async existsByDocument(documentNumber: string): Promise<boolean> {
     const [row] = await this.db
       .select({ id: tenants.id })
