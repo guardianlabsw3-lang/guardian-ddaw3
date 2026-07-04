@@ -380,6 +380,27 @@ jobs:
             echo "==> Pulling images from Docker Hub"
             "${COMPOSE[@]}" pull
 
+            # --- Reconcile the DB role password with the current secret --------------------
+            # The postgres image only applies POSTGRES_PASSWORD when it FIRST initializes an
+            # empty data dir. On every later deploy the env var is ignored, so once the
+            # POSTGRES_PASSWORD secret diverges from the value baked into the existing
+            # `payorder_pg` volume (e.g. the secret was set/rotated after the first deploy),
+            # the stored role password is stale and migrate/api fail with
+            # `password authentication failed for user "payorder"` (the pg_isready healthcheck
+            # doesn't verify the password, so the container still reports healthy). Bring
+            # postgres up on its own, then reset the role password to match the secret over the
+            # container's LOCAL socket — the official image trusts `local` connections, so this
+            # works even while network (scram) password auth is broken. Idempotent: on a fresh
+            # volume it just re-sets the same password. `\getenv` + `:'pw'` keep the secret out
+            # of the process args and make it SQL-injection-safe.
+            echo "==> Ensuring postgres is up, then reconciling the '${POSTGRES_USER}' role password"
+            "${COMPOSE[@]}" up -d --wait postgres
+            "${COMPOSE[@]}" exec -T -e APP_DB_PW="${POSTGRES_PASSWORD}" postgres \
+              psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" <<'PSQL'
+            \getenv pw APP_DB_PW
+            ALTER ROLE CURRENT_USER WITH PASSWORD :'pw';
+            PSQL
+
             echo "==> Applying database migrations (one-shot)"
             "${COMPOSE[@]}" run --rm migrate
 
