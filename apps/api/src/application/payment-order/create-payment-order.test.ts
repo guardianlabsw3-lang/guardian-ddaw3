@@ -207,6 +207,11 @@ describe('CreatePaymentOrder', () => {
       'INVALID_DUE_DATE',
       422,
     );
+    await expectAppError(
+      useCase.execute({ tenantId: TENANT_1, amount: '10', dueDate: '2026-06-29' }),
+      'DUE_DATE_IN_PAST',
+      422,
+    );
   });
 
   it('stores ERP callback_url in metadata and normalizes source', async () => {

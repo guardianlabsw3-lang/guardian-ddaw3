@@ -44,9 +44,15 @@ export function CreateOrderForm({
 
   const walletMissing = selectedTenant !== null && !selectedTenant.stellar_wallet_public_key;
 
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!selectedTenant) return;
+    if (dueDate && dueDate < todayIso) {
+      setError('O vencimento não pode ser anterior a hoje.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -127,7 +133,7 @@ export function CreateOrderForm({
 
       <div className="field">
         <label htmlFor="due">Vencimento (opcional)</label>
-        <DatePicker id="due" value={dueDate} onChange={setDueDate} />
+        <DatePicker id="due" value={dueDate} onChange={setDueDate} min={todayIso} />
       </div>
 
       <div className="field">

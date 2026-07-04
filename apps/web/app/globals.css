@@ -382,6 +382,16 @@ h2 {
   font-weight: 600;
 }
 
+.datepicker-day-disabled {
+  color: var(--text-muted);
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.datepicker-day-disabled:hover {
+  border-color: transparent;
+}
+
 .datepicker-footer {
   display: flex;
   justify-content: space-between;

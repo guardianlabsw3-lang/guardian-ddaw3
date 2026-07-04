@@ -12,11 +12,14 @@ export function DatePicker({
   value,
   onChange,
   placeholder = 'Selecione uma data',
+  min,
 }: {
   id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Earliest selectable date ("YYYY-MM-DD"); days before it are shown disabled. */
+  min?: string;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -104,8 +107,10 @@ export function DatePicker({
             {days.map((day) => {
               const iso = toIso(day);
               const inMonth = day.getMonth() === viewMonth.getMonth();
+              const disabled = min !== undefined && iso < min;
               const classes = ['datepicker-day'];
               if (!inMonth) classes.push('datepicker-day-muted');
+              if (disabled) classes.push('datepicker-day-disabled');
               if (iso === value) classes.push('datepicker-day-selected');
               else if (iso === today) classes.push('datepicker-day-today');
               return (
@@ -114,6 +119,7 @@ export function DatePicker({
                   type="button"
                   className={classes.join(' ')}
                   onClick={() => pick(day)}
+                  disabled={disabled}
                   aria-pressed={iso === value}
                 >
                   {day.getDate()}
