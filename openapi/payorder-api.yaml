@@ -135,11 +135,17 @@ paths:
     post:
       tags: [Tenants]
       summary: Ativa tenant
+      description: >
+        Requer uma wallet cadastrada e existente na rede Stellar. Sem wallet retorna
+        409 TENANT_WALLET_NOT_SET; com uma wallet inexistente on-chain retorna
+        422 STELLAR_ACCOUNT_NOT_FOUND.
       security: [ { AdminJWT: [] } ]
       parameters: [ { $ref: "#/components/parameters/IdParam" } ]
       responses:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Tenant" } } } }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
   /tenants/{id}/deactivate:
     post:
@@ -167,7 +173,10 @@ paths:
     put:
       tags: [Tenants]
       summary: Cadastra/atualiza wallet do tenant
-      description: Bloqueado se houver ordens ACTIVE (409 WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS).
+      description: >
+        A wallet é verificada na rede Stellar antes de ser salva; uma conta inexistente
+        on-chain é rejeitada com 422 STELLAR_ACCOUNT_NOT_FOUND. Bloqueado se houver ordens
+        ACTIVE (409 WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS).
       security: [ { AdminJWT: [] } ]
       parameters: [ { $ref: "#/components/parameters/IdParam" } ]
       requestBody:

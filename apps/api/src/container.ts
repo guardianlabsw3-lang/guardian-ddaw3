@@ -41,6 +41,7 @@ import {
   sorobanRpcCheck,
 } from './infrastructure/observability/index.js';
 import { createDb, type DbHandle } from './infrastructure/persistence/index.js';
+import { HorizonAccountVerifier } from './infrastructure/stellar/index.js';
 import {
   DrizzlePaymentOrderRepository,
   DrizzleTenantRepository,
@@ -123,8 +124,13 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
     logger,
   });
 
-  const createTenant = new CreateTenant(tenants, ids, slugs, clock);
-  const assignWallet = new AssignTenantWallet(tenants, orders, clock);
+  const stellarAccounts = new HorizonAccountVerifier(
+    { horizonUrl: config.stellar.horizonUrl },
+    logger,
+  );
+
+  const createTenant = new CreateTenant(tenants, ids, slugs, clock, stellarAccounts);
+  const assignWallet = new AssignTenantWallet(tenants, orders, clock, stellarAccounts);
 
   const routes = [
     ...authRoutes({
@@ -135,7 +141,7 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
       create: createTenant,
       list: new ListTenants(tenants),
       get: new GetTenant(tenants),
-      activate: new ActivateTenant(tenants, clock),
+      activate: new ActivateTenant(tenants, clock, stellarAccounts),
       deactivate: new DeactivateTenant(tenants, clock),
       assignWallet,
       getWallet: new GetTenantWallet(tenants),

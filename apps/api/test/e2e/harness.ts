@@ -41,7 +41,12 @@ import {
   type App,
   type HttpResponse,
 } from '../../src/interfaces/http/index.js';
-import { FixedClock, MockSorobanContract, RecordingLogger } from '../fakes.js';
+import {
+  FixedClock,
+  MockSorobanContract,
+  RecordingLogger,
+  StubStellarAccountVerifier,
+} from '../fakes.js';
 import {
   FakeWebhookSender,
   InMemoryAdminUserRepository,
@@ -111,6 +116,7 @@ export async function buildE2EHarness(options: E2EHarnessOptions = {}): Promise<
   const clock = new FixedClock(E2E_NOW);
   const contract = new MockSorobanContract();
   const logger = new RecordingLogger();
+  const stellarAccounts = new StubStellarAccountVerifier();
 
   const tenants = new InMemoryTenantRepository();
   const orders = new InMemoryPaymentOrderRepository();
@@ -162,12 +168,12 @@ export async function buildE2EHarness(options: E2EHarnessOptions = {}): Promise<
   const routes = [
     ...authRoutes({ login: new LoginAdmin({ admins, hasher, tokens }) }),
     ...tenantRoutes({
-      create: new CreateTenant(tenants, ids, slugs, clock),
+      create: new CreateTenant(tenants, ids, slugs, clock, stellarAccounts),
       list: new ListTenants(tenants),
       get: new GetTenant(tenants),
-      activate: new ActivateTenant(tenants, clock),
+      activate: new ActivateTenant(tenants, clock, stellarAccounts),
       deactivate: new DeactivateTenant(tenants, clock),
-      assignWallet: new AssignTenantWallet(tenants, orders, clock),
+      assignWallet: new AssignTenantWallet(tenants, orders, clock, stellarAccounts),
       getWallet: new GetTenantWallet(tenants),
       audit: { async record() {} },
     }),

@@ -14,9 +14,11 @@ import type {
   RegisterOrderResult,
   SlugGenerator,
   SorobanContractPort,
+  StellarAccountVerifier,
   TenantListFilter,
   TenantRepository,
 } from '../src/application/ports/index.js';
+import type { StellarAccount } from '@payorder/shared';
 
 /** Deterministic clock for use-case tests. */
 export class FixedClock implements Clock {
@@ -52,6 +54,39 @@ export class StubSlugGenerator implements SlugGenerator {
   publicPaymentSlug(): string {
     this.n += 1;
     return `p_${this.n.toString().padStart(22, '0')}`;
+  }
+}
+
+/**
+ * Stub `StellarAccountVerifier`. Defaults to reporting every account as existing so tests that
+ * don't care about on-chain verification stay green; `deny()` marks specific public keys as
+ * missing and `failWith()` simulates an unreachable Horizon (non-conclusive → throws).
+ */
+export class StubStellarAccountVerifier implements StellarAccountVerifier {
+  readonly checked: string[] = [];
+  private readonly missing = new Set<string>();
+  private error: Error | null = null;
+
+  /** Mark one or more public keys as non-existent on-chain. */
+  deny(...publicKeys: string[]): this {
+    for (const key of publicKeys) {
+      this.missing.add(key);
+    }
+    return this;
+  }
+
+  /** Make every check throw, simulating an unreachable network. */
+  failWith(error: Error): this {
+    this.error = error;
+    return this;
+  }
+
+  async exists(account: StellarAccount): Promise<boolean> {
+    this.checked.push(account.publicKey);
+    if (this.error) {
+      throw this.error;
+    }
+    return !this.missing.has(account.publicKey);
   }
 }
 

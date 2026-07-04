@@ -17,6 +17,7 @@ import {
   CreateTenant,
 } from '../src/application/tenant/index.js';
 import { describeDb, setupDb, truncateAll } from './db.js';
+import { StubStellarAccountVerifier } from './fakes.js';
 import { VALID_KEYS, VALID_CNPJ, expectAppError } from './fixtures.js';
 
 /**
@@ -49,8 +50,9 @@ describeDb('CreatePaymentOrder (PostgreSQL, end-to-end)', () => {
     tenantsRepo = new DrizzleTenantRepository(handle.db);
     ordersRepo = new DrizzlePaymentOrderRepository(handle.db);
     queue = new InMemoryOrderRegistrationQueue();
+    const stellar = new StubStellarAccountVerifier();
 
-    const tenantView = await new CreateTenant(tenantsRepo, ids, slugs, clock).execute({
+    const tenantView = await new CreateTenant(tenantsRepo, ids, slugs, clock, stellar).execute({
       name: 'ACME Pagamentos',
       legalName: 'ACME Pagamentos LTDA',
       document: { type: 'CNPJ', number: VALID_CNPJ },
@@ -58,11 +60,11 @@ describeDb('CreatePaymentOrder (PostgreSQL, end-to-end)', () => {
       defaultAsset: { code: 'XLM', issuer: null },
     });
     tenantId = tenantView.id;
-    await new AssignTenantWallet(tenantsRepo, ordersRepo, clock).execute(tenantId, {
+    await new AssignTenantWallet(tenantsRepo, ordersRepo, clock, stellar).execute(tenantId, {
       publicKey: VALID_KEYS[0],
       network: 'TESTNET',
     });
-    await new ActivateTenant(tenantsRepo, clock).execute(tenantId);
+    await new ActivateTenant(tenantsRepo, clock, stellar).execute(tenantId);
 
     createOrder = new CreatePaymentOrder({
       tenants: tenantsRepo,
@@ -115,7 +117,12 @@ describeDb('CreatePaymentOrder (PostgreSQL, end-to-end)', () => {
   it('blocks a wallet change once an order exists (RN-09)', async () => {
     await createOrder.execute({ tenantId, amount: '10' });
     await expectAppError(
-      new AssignTenantWallet(tenantsRepo, ordersRepo, new SystemClock()).execute(tenantId, {
+      new AssignTenantWallet(
+        tenantsRepo,
+        ordersRepo,
+        new SystemClock(),
+        new StubStellarAccountVerifier(),
+      ).execute(tenantId, {
         publicKey: VALID_KEYS[1],
         network: 'TESTNET',
       }),

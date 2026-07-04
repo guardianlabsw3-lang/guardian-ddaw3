@@ -1,14 +1,21 @@
 import { CreateTenantInputSchema, SlugSchema } from '@payorder/shared';
 import { Tenant } from '../../domain/tenant/index.js';
-import type { Clock, IdGenerator, SlugGenerator, TenantRepository } from '../ports/index.js';
-import { conflict, validate } from '../shared/errors.js';
+import type {
+  Clock,
+  IdGenerator,
+  SlugGenerator,
+  StellarAccountVerifier,
+  TenantRepository,
+} from '../ports/index.js';
+import { conflict, unprocessable, validate } from '../shared/errors.js';
 import { toTenantView, type TenantView } from './views.js';
 
 /**
  * UC-01 onboarding (spec 05). Validates input (shared zod), enforces document uniqueness
  * (`TENANT_DOCUMENT_CONFLICT`), generates a unique URL-safe slug, and persists the tenant
  * `INACTIVE` per the activation policy (spec 05 §6) — a wallet may be supplied now or later,
- * but the tenant only becomes `ACTIVE` via `ActivateTenant`.
+ * but the tenant only becomes `ACTIVE` via `ActivateTenant`. A wallet supplied at creation is
+ * verified on-chain (`STELLAR_ACCOUNT_NOT_FOUND`) so no non-existent account is ever stored.
  */
 export class CreateTenant {
   constructor(
@@ -16,6 +23,7 @@ export class CreateTenant {
     private readonly ids: IdGenerator,
     private readonly slugs: SlugGenerator,
     private readonly clock: Clock,
+    private readonly stellar: StellarAccountVerifier,
   ) {}
 
   async execute(input: unknown): Promise<TenantView> {
@@ -25,6 +33,14 @@ export class CreateTenant {
       throw conflict('TENANT_DOCUMENT_CONFLICT', 'A tenant with this document already exists', {
         documentNumber: data.document.number,
       });
+    }
+
+    if (data.wallet && !(await this.stellar.exists(data.wallet))) {
+      throw unprocessable(
+        'STELLAR_ACCOUNT_NOT_FOUND',
+        'The wallet does not exist on the Stellar network',
+        { publicKey: data.wallet.publicKey },
+      );
     }
 
     const slug = await this.ensureUniqueSlug(data.name);
