@@ -4,15 +4,21 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { getConfig } from '@/src/config';
 import { ApiError, PayOrderApi } from '@/src/lib/api';
+import { connectWallet, WalletError } from '@/src/stellar/freighter';
+import { truncateMiddle } from '@/src/lib/format';
 import { TestnetBanner } from '@/src/components/TestnetBanner';
 
 type Mode = 'login' | 'register';
+/** After registering, the admin is asked to connect a wallet before entering the panel. */
+type Step = 'credentials' | 'connect-wallet';
 
 /** Minimum password length — must match the API's `RegisterRequest` policy (spec 10 §5). */
 const PASSWORD_MIN_LENGTH = 8;
 
 export function LoginForm({ onAuthenticated }: { onAuthenticated: (token: string) => void }) {
   const [mode, setMode] = useState<Mode>('login');
+  const [step, setStep] = useState<Step>('credentials');
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -46,16 +52,25 @@ export function LoginForm({ onAuthenticated }: { onAuthenticated: (token: string
     setLoading(true);
     try {
       const api = new PayOrderApi(getConfig().apiBaseUrl);
-      const { token } = isRegister
-        ? await api.register(email, password)
-        : await api.login(email, password);
-      onAuthenticated(token);
+      if (isRegister) {
+        // New account: hold the token and prompt for a wallet before entering the panel.
+        const { token } = await api.register(email, password);
+        setPendingToken(token);
+        setStep('connect-wallet');
+      } else {
+        const { token } = await api.login(email, password);
+        onAuthenticated(token);
+      }
     } catch (err) {
       const fallback = isRegister ? 'Falha ao registrar.' : 'Falha ao autenticar.';
       setError(err instanceof ApiError ? messageForError(err, fallback) : fallback);
     } finally {
       setLoading(false);
     }
+  }
+
+  if (step === 'connect-wallet' && pendingToken) {
+    return <ConnectWalletStep token={pendingToken} onDone={() => onAuthenticated(pendingToken)} />;
   }
 
   return (
@@ -128,6 +143,71 @@ export function LoginForm({ onAuthenticated }: { onAuthenticated: (token: string
               </button>
             </>
           )}
+        </p>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Post-registration step: prompt the new admin to connect their Freighter wallet (Testnet) so
+ * its public key is saved to their tenant. Non-custodial — only the public key is read, never a
+ * secret. The admin may skip and configure a wallet later from the Tenants panel.
+ */
+function ConnectWalletStep({ token, onDone }: { token: string; onDone: () => void }) {
+  const [connecting, setConnecting] = useState(false);
+  const [savedAddress, setSavedAddress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function connect() {
+    setConnecting(true);
+    setError(null);
+    try {
+      const { address } = await connectWallet();
+      const api = new PayOrderApi(getConfig().apiBaseUrl, token);
+      await api.onboardWallet(address);
+      setSavedAddress(address);
+      onDone();
+    } catch (err) {
+      if (err instanceof WalletError) {
+        setError(err.message);
+      } else if (err instanceof ApiError) {
+        setError(err.message || 'Falha ao salvar a carteira.');
+      } else {
+        setError('Não foi possível conectar a carteira. Verifique a extensão Freighter.');
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <main className="container container-narrow">
+      <TestnetBanner />
+      <div className="card">
+        <h1>Conecte sua carteira</h1>
+        <p className="muted">
+          Conta criada! Conecte sua carteira Stellar (Testnet) para definir a carteira de
+          recebimento do seu tenant. Nunca pedimos sua chave secreta — apenas a chave pública.
+        </p>
+        {savedAddress ? (
+          <div className="alert alert-success">
+            Carteira <span className="mono">{truncateMiddle(savedAddress, 8, 8)}</span> salva.
+          </div>
+        ) : null}
+        {error ? <div className="alert alert-error">{error}</div> : null}
+        <button
+          className="btn btn-primary btn-block"
+          onClick={() => void connect()}
+          disabled={connecting}
+        >
+          {connecting ? <span className="spinner" /> : null}
+          Conectar carteira
+        </button>
+        <p className="muted" style={{ marginBottom: 0, textAlign: 'center' }}>
+          <button type="button" className="link-btn" onClick={onDone} disabled={connecting}>
+            Pular por enquanto
+          </button>
         </p>
       </div>
     </main>

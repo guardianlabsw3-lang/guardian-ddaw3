@@ -72,6 +72,9 @@ export class InMemoryTenantRepository implements TenantRepository {
   async findByDocument(documentNumber: string): Promise<Tenant | null> {
     return [...this.store.values()].find((t) => t.document.number === documentNumber) ?? null;
   }
+  async findByAdminEmail(adminEmail: string): Promise<Tenant | null> {
+    return [...this.store.values()].find((t) => t.adminEmail === adminEmail) ?? null;
+  }
   async existsByDocument(documentNumber: string): Promise<boolean> {
     return (await this.findByDocument(documentNumber)) !== null;
   }

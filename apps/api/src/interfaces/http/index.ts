@@ -13,6 +13,7 @@ export * from './middleware/auth.js';
 export * from './middleware/rate-limit.js';
 export * from './middleware/idempotency.js';
 export * from './tenant/tenant.controller.js';
+export * from './onboarding/onboarding.controller.js';
 export * from './payment-order/payment-order.controller.js';
 export * from './public/public.controller.js';
 export * from './auth/auth.controller.js';

@@ -104,6 +104,20 @@ export class PayOrderApi {
     return { token: body.access_token };
   }
 
+  /**
+   * Save a wallet connected during onboarding to the current admin's tenant (auto-creating the
+   * tenant on first connect). Requires the Bearer token issued by `register`/`login`. See
+   * `POST /api/onboarding/wallet`.
+   */
+  async onboardWallet(publicKey: string): Promise<Tenant> {
+    const res = await fetch(this.url('/onboarding/wallet'), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ stellar_wallet_public_key: publicKey, stellar_network: 'TESTNET' }),
+    });
+    return parse<Tenant>(res);
+  }
+
   async listTenants(): Promise<Tenant[]> {
     const res = await fetch(this.url('/tenants'), { headers: this.headers() });
     const body = await parse<Tenant[] | { items: Tenant[] }>(res);

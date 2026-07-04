@@ -201,6 +201,43 @@ describe('PayOrder REST API (HTTP integration)', () => {
     });
   });
 
+  describe('onboarding (wallet connect on registration)', () => {
+    it('auto-creates the admin tenant with the connected wallet and audits it', async () => {
+      const h = await buildHarness();
+      const res = await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: adminAuth(h),
+        body: { stellar_wallet_public_key: WALLET, stellar_network: 'TESTNET' },
+      });
+      expect(res.status).toBe(200);
+      const tenant = res.body as { admin_email: string; stellar_wallet_public_key: string };
+      expect(tenant.admin_email).toBe(h.adminEmail);
+      expect(tenant.stellar_wallet_public_key).toBe(WALLET);
+      expect(h.audit.entries.map((e) => e.action)).toContain('tenant.wallet.onboard');
+
+      // A second connect updates the same tenant instead of creating a duplicate.
+      await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: adminAuth(h),
+        body: { stellar_wallet_public_key: VALID_KEYS[1], stellar_network: 'TESTNET' },
+      });
+      const list = await h.request({ method: 'GET', path: '/api/tenants', headers: adminAuth(h) });
+      expect((list.body as { total: number }).total).toBe(1);
+    });
+
+    it('requires authentication (401)', async () => {
+      const h = await buildHarness();
+      const res = await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        body: { stellar_wallet_public_key: WALLET, stellar_network: 'TESTNET' },
+      });
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('payment orders', () => {
     it('creates an order from tenant + amount and returns 202', async () => {
       const h = await buildHarness();

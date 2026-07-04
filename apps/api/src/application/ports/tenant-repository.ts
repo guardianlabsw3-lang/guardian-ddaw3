@@ -24,6 +24,8 @@ export interface TenantRepository {
   findById(id: string): Promise<Tenant | null>;
   findBySlug(slug: string): Promise<Tenant | null>;
   findByDocument(documentNumber: string): Promise<Tenant | null>;
+  /** Resolve the tenant onboarded under an admin email (self-service onboarding). */
+  findByAdminEmail(adminEmail: string): Promise<Tenant | null>;
   existsByDocument(documentNumber: string): Promise<boolean>;
   existsBySlug(slug: string): Promise<boolean>;
   list(filter: TenantListFilter): Promise<Page<Tenant>>;
