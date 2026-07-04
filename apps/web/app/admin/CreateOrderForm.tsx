@@ -6,6 +6,7 @@ import type { PayOrderApi } from '@/src/lib/api';
 import { ApiError } from '@/src/lib/api';
 import type { PaymentOrder, Tenant } from '@/src/lib/types';
 import { newIdempotencyKey } from '@/src/auth/session';
+import { DatePicker } from '@/src/components/DatePicker';
 
 /**
  * Manual charge creation (UC-03, spec 16 §3). The destination wallet is **never typed** — on
@@ -126,7 +127,7 @@ export function CreateOrderForm({
 
       <div className="field">
         <label htmlFor="due">Vencimento (opcional)</label>
-        <input id="due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <DatePicker id="due" value={dueDate} onChange={setDueDate} />
       </div>
 
       <div className="field">
