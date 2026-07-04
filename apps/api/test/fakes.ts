@@ -116,6 +116,11 @@ export class InMemoryTenantRepository implements TenantRepository {
   async existsBySlug(slug: string): Promise<boolean> {
     return (await this.findBySlug(slug)) !== null;
   }
+  async existsByWallet(publicKey: string, excludeTenantId?: string): Promise<boolean> {
+    return [...this.store.values()].some(
+      (t) => t.id !== excludeTenantId && t.wallet?.publicKey === publicKey,
+    );
+  }
   async list(filter: TenantListFilter): Promise<Page<Tenant>> {
     let items = [...this.store.values()];
     if (filter.status) items = items.filter((t) => t.status === filter.status);

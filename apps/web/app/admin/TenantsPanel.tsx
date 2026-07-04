@@ -64,6 +64,41 @@ function WalletEditor({
   );
 }
 
+function ActivateButton({
+  tenant,
+  api,
+  onActivated,
+}: {
+  tenant: Tenant;
+  api: PayOrderApi;
+  onActivated: (tenant: Tenant) => void;
+}) {
+  const [activating, setActivating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function activate() {
+    setActivating(true);
+    setError(null);
+    try {
+      onActivated(await api.activateTenant(tenant.id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Falha ao ativar o tenant.');
+    } finally {
+      setActivating(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <button className="btn btn-primary" onClick={activate} disabled={activating}>
+        {activating ? <span className="spinner" /> : null}
+        Ativar
+      </button>
+      {error ? <div className="alert alert-error">{error}</div> : null}
+    </div>
+  );
+}
+
 export function TenantsPanel({ api }: { api: PayOrderApi }) {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,9 +160,14 @@ export function TenantsPanel({ api }: { api: PayOrderApi }) {
                   {tenant.document_type} {tenant.document_number}
                 </td>
                 <td>
-                  <span className={`badge ${tenant.status === 'ACTIVE' ? 'success' : 'neutral'}`}>
-                    {tenant.status}
-                  </span>
+                  <div className="stack">
+                    <span className={`badge ${tenant.status === 'ACTIVE' ? 'success' : 'neutral'}`}>
+                      {tenant.status}
+                    </span>
+                    {tenant.status !== 'ACTIVE' ? (
+                      <ActivateButton tenant={tenant} api={api} onActivated={onTenantSaved} />
+                    ) : null}
+                  </div>
                 </td>
                 <td>
                   <div className="stack">

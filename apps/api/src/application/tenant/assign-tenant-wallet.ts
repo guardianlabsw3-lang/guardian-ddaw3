@@ -32,6 +32,12 @@ export class AssignTenantWallet {
       throw notFound('TENANT_NOT_FOUND', 'Tenant not found', { id: tenantId });
     }
 
+    if (await this.tenants.existsByWallet(wallet.publicKey, tenantId)) {
+      throw conflict('TENANT_WALLET_CONFLICT', 'A tenant with this wallet already exists', {
+        publicKey: wallet.publicKey,
+      });
+    }
+
     if (!(await this.stellar.exists(wallet))) {
       throw unprocessable(
         'STELLAR_ACCOUNT_NOT_FOUND',

@@ -30,5 +30,11 @@ export interface TenantRepository {
   findByAdminEmail(adminEmail: string): Promise<Tenant | null>;
   existsByDocument(documentNumber: string): Promise<boolean>;
   existsBySlug(slug: string): Promise<boolean>;
+  /**
+   * Whether some tenant already holds this destination wallet (ADR-04: one wallet backs at
+   * most one tenant). `excludeTenantId` skips the tenant being updated so re-saving its own
+   * wallet is not treated as a conflict.
+   */
+  existsByWallet(publicKey: string, excludeTenantId?: string): Promise<boolean>;
   list(filter: TenantListFilter): Promise<Page<Tenant>>;
 }

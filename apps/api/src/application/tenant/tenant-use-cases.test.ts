@@ -86,6 +86,17 @@ describe('Tenant use cases', () => {
       await expectAppError(create.execute(validInput()), 'TENANT_DOCUMENT_CONFLICT', 409);
     });
 
+    it('rejects a wallet already used by another tenant (TENANT_WALLET_CONFLICT, 409)', async () => {
+      await create.execute(validInput({ wallet: wallet() }));
+      await expectAppError(
+        create.execute(
+          validInput({ document: { type: 'CNPJ', number: '11444777000161' }, wallet: wallet() }),
+        ),
+        'TENANT_WALLET_CONFLICT',
+        409,
+      );
+    });
+
     it('de-duplicates slugs across tenants with the same name', async () => {
       const a = await create.execute(validInput());
       const b = await create.execute(
@@ -182,6 +193,19 @@ describe('Tenant use cases', () => {
       stellar.deny(VALID_KEYS[0]!);
       const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
       await expectAppError(assign.execute(created.id, wallet()), 'STELLAR_ACCOUNT_NOT_FOUND', 422);
+    });
+
+    it('rejects a wallet already assigned to another tenant (TENANT_WALLET_CONFLICT, 409)', async () => {
+      await create.execute(validInput({ wallet: wallet(VALID_KEYS[0]) }));
+      const other = await create.execute(
+        validInput({ document: { type: 'CNPJ', number: '11444777000161' } }),
+      );
+      const assign = new AssignTenantWallet(tenants, orders, clock, stellar);
+      await expectAppError(
+        assign.execute(other.id, wallet(VALID_KEYS[0])),
+        'TENANT_WALLET_CONFLICT',
+        409,
+      );
     });
 
     it('blocks a wallet change while open orders exist (RN-09)', async () => {

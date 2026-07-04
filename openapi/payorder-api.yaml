@@ -82,6 +82,10 @@ paths:
     post:
       tags: [Tenants]
       summary: Cria tenant
+      description: >
+        O documento é único (409 TENANT_DOCUMENT_CONFLICT). Quando uma wallet é informada, ela
+        deve ser exclusiva de um único tenant: uma wallet já vinculada a outro tenant retorna
+        409 TENANT_WALLET_CONFLICT.
       security: [ { AdminJWT: [] } ]
       requestBody:
         required: true
@@ -175,7 +179,8 @@ paths:
       summary: Cadastra/atualiza wallet do tenant
       description: >
         A wallet é verificada na rede Stellar antes de ser salva; uma conta inexistente
-        on-chain é rejeitada com 422 STELLAR_ACCOUNT_NOT_FOUND. Bloqueado se houver ordens
+        on-chain é rejeitada com 422 STELLAR_ACCOUNT_NOT_FOUND. Uma wallet já vinculada a outro
+        tenant é rejeitada com 409 TENANT_WALLET_CONFLICT. Bloqueado se houver ordens
         ACTIVE (409 WALLET_CHANGE_BLOCKED_ACTIVE_ORDERS).
       security: [ { AdminJWT: [] } ]
       parameters: [ { $ref: "#/components/parameters/IdParam" } ]

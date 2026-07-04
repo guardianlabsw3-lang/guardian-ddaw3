@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * `tenants` — receiver identity + destination wallet (spec 09 §1). The principal wallet
@@ -25,6 +25,11 @@ export const tenants = pgTable(
   },
   (t) => [
     index('idx_tenants_status').on(t.status),
+    // One destination wallet may back at most one tenant (ADR-04). Partial so multiple
+    // wallet-less tenants (NULL) remain allowed while a registered key stays unique.
+    uniqueIndex('uq_tenants_wallet_public_key')
+      .on(t.stellarWalletPublicKey)
+      .where(sql`${t.stellarWalletPublicKey} IS NOT NULL`),
     check('chk_tenants_document_type', sql`${t.documentType} IN ('CNPJ','CPF','OTHER')`),
     check('chk_tenants_status', sql`${t.status} IN ('ACTIVE','INACTIVE')`),
     check('chk_tenants_network', sql`${t.stellarNetwork} = 'TESTNET'`),

@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, ne, sql } from 'drizzle-orm';
 import type { TenantStatus } from '@payorder/shared';
 import type { Tenant } from '../../domain/tenant/index.js';
 import type { Page, TenantListFilter, TenantRepository } from '../../application/ports/index.js';
@@ -80,6 +80,14 @@ export class DrizzleTenantRepository implements TenantRepository {
       .from(tenants)
       .where(eq(tenants.slug, slug))
       .limit(1);
+    return row !== undefined;
+  }
+
+  async existsByWallet(publicKey: string, excludeTenantId?: string): Promise<boolean> {
+    const where = excludeTenantId
+      ? and(eq(tenants.stellarWalletPublicKey, publicKey), ne(tenants.id, excludeTenantId))
+      : eq(tenants.stellarWalletPublicKey, publicKey);
+    const [row] = await this.db.select({ id: tenants.id }).from(tenants).where(where).limit(1);
     return row !== undefined;
   }
 
