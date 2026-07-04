@@ -14,6 +14,7 @@ import {
   ListPaymentOrders,
   ListTenants,
   LoginAdmin,
+  RegisterAdmin,
   ResendWebhook,
   WebhookDispatcher,
 } from '../../src/application/index.js';
@@ -142,7 +143,10 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
   });
 
   const routes = [
-    ...authRoutes({ login: new LoginAdmin({ admins, hasher, tokens }) }),
+    ...authRoutes({
+      login: new LoginAdmin({ admins, hasher, tokens }),
+      register: new RegisterAdmin({ admins, hasher, tokens }),
+    }),
     ...tenantRoutes({
       create: new CreateTenant(tenants, ids, slugs, clock),
       list: new ListTenants(tenants),

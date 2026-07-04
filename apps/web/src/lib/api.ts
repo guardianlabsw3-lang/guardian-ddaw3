@@ -89,6 +89,21 @@ export class PayOrderApi {
     return { token: body.access_token };
   }
 
+  /**
+   * Register a new admin account. The API creates the account and returns the same
+   * `LoginResponse` shape as `login`, so the caller is authenticated immediately (no second
+   * round-trip). A duplicate email surfaces as `ApiError` with code `EMAIL_ALREADY_REGISTERED`.
+   */
+  async register(email: string, password: string): Promise<{ token: string }> {
+    const res = await fetch(this.url('/auth/register'), {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ email, password }),
+    });
+    const body = await parse<{ access_token: string }>(res);
+    return { token: body.access_token };
+  }
+
   async listTenants(): Promise<Tenant[]> {
     const res = await fetch(this.url('/tenants'), { headers: this.headers() });
     const body = await parse<Tenant[] | { items: Tenant[] }>(res);

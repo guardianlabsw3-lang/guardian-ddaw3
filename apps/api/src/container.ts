@@ -14,6 +14,7 @@ import {
   ListPaymentOrders,
   ListTenants,
   LoginAdmin,
+  RegisterAdmin,
   ResendWebhook,
   WebhookDispatcher,
 } from './application/index.js';
@@ -121,7 +122,10 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
   });
 
   const routes = [
-    ...authRoutes({ login: new LoginAdmin({ admins: adminUsers, hasher, tokens }) }),
+    ...authRoutes({
+      login: new LoginAdmin({ admins: adminUsers, hasher, tokens }),
+      register: new RegisterAdmin({ admins: adminUsers, hasher, tokens }),
+    }),
     ...tenantRoutes({
       create: new CreateTenant(tenants, ids, slugs, clock),
       list: new ListTenants(tenants),

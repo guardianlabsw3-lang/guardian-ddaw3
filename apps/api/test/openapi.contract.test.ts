@@ -59,6 +59,7 @@ describe('OpenAPI contract', () => {
     };
     const publicOps: [string, string][] = [
       ['/auth/login', 'post'],
+      ['/auth/register', 'post'],
       ['/health', 'get'],
       ['/ready', 'get'],
       ['/public/payment-orders/{slug}', 'get'],

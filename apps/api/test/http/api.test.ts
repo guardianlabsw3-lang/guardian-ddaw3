@@ -47,6 +47,46 @@ describe('PayOrder REST API (HTTP integration)', () => {
       expect((bad.body as { error: { code: string } }).error.code).toBe('UNAUTHENTICATED');
     });
 
+    it('registers a new admin, issues a token, and rejects duplicates', async () => {
+      const h = await buildHarness();
+      const created = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'new-admin@acme.test', password: 'sup3r-secret-pass' },
+      });
+      expect(created.status).toBe(201);
+      expect((created.body as { token_type: string }).token_type).toBe('Bearer');
+      expect((created.body as { access_token?: string }).access_token).toBeTruthy();
+
+      // The registered account can immediately log in.
+      const login = await h.request({
+        method: 'POST',
+        path: '/api/auth/login',
+        body: { email: 'new-admin@acme.test', password: 'sup3r-secret-pass' },
+      });
+      expect(login.status).toBe(200);
+
+      // A duplicate email is rejected.
+      const dup = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'new-admin@acme.test', password: 'another-pass-1' },
+      });
+      expect(dup.status).toBe(409);
+      expect((dup.body as { error: { code: string } }).error.code).toBe('EMAIL_ALREADY_REGISTERED');
+    });
+
+    it('rejects registration with a too-short password (422)', async () => {
+      const h = await buildHarness();
+      const res = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'short-pass@acme.test', password: 'short' },
+      });
+      expect(res.status).toBe(422);
+      expect((res.body as { error: { code: string } }).error.code).toBe('PASSWORD_TOO_SHORT');
+    });
+
     it('requires authentication and echoes a request id', async () => {
       const h = await buildHarness();
       const res = await h.request({ method: 'GET', path: '/api/tenants' });
