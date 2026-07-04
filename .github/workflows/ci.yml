@@ -285,12 +285,19 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           WEBHOOK_SIGNING_SECRET: ${{ secrets.WEBHOOK_SIGNING_SECRET }}
           SOROBAN_ADMIN_SECRET: ${{ secrets.SOROBAN_ADMIN_SECRET }}
+
+          # First admin panel account, created idempotently on each deploy (bootstrap-admin
+          # one-shot). The email may be a repo Variable or Secret; the password must be a
+          # Secret. Both optional — the bootstrap step is skipped when either is empty. This
+          # email also becomes the root admin (ROOT_ADMIN_EMAIL) with full tenant visibility.
+          SEED_ADMIN_EMAIL: ${{ vars.SEED_ADMIN_EMAIL || secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           # appleboy/ssh-action only forwards the env vars named here into the remote shell.
-          envs: IMAGE_TAG,VPS_PATH,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,TRAEFIK_DYNAMIC_DIR,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,POSTGRES_PASSWORD_ENCODED,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET
+          envs: IMAGE_TAG,VPS_PATH,DOCKERHUB_USERNAME,WEB_DOMAIN,API_DOMAIN,TRAEFIK_NETWORK,TRAEFIK_DYNAMIC_DIR,SOROBAN_CONTRACT_ID,POSTGRES_PASSWORD,POSTGRES_PASSWORD_ENCODED,JWT_SECRET,WEBHOOK_SIGNING_SECRET,SOROBAN_ADMIN_SECRET,SEED_ADMIN_EMAIL,SEED_ADMIN_PASSWORD
           script: |
             set -euo pipefail
             cd "${VPS_PATH:?VPS_PATH not set}"
@@ -311,6 +318,9 @@ jobs:
             POSTGRES_USER=payorder
             POSTGRES_DB=payorder
             COMPOSE_FILE=docker-compose.payorder.vps.yml
+            # First-admin bootstrap is optional; default to empty so `set -u` never trips.
+            SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL:-}"
+            SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD:-}"
 
             # --- Render .env.vps (env_file + Compose interpolation source), beside the compose ---
             # umask so the file is created 0600; regenerated on every deploy from GitHub state,
@@ -343,6 +353,9 @@ jobs:
             JWT_SECRET=${JWT_SECRET}
             WEBHOOK_SIGNING_SECRET=${WEBHOOK_SIGNING_SECRET}
             CORS_ORIGINS=https://${WEB_DOMAIN}
+            # The bootstrapped first admin is the root login with full tenant visibility; every
+            # other admin login is scoped to its own tenant. Empty → API default (see env.ts).
+            ROOT_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
 
             STELLAR_NETWORK=TESTNET
             STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
@@ -403,6 +416,18 @@ jobs:
 
             echo "==> Applying database migrations (one-shot)"
             "${COMPOSE[@]}" run --rm migrate
+
+            # --- Create the first admin panel account (idempotent one-shot) -----------------
+            # Credentials are passed at run time via `-e` (NOT baked into .env.vps), so the
+            # panel password never lands in the long-lived api/worker container env. The
+            # entrypoint is idempotent: it skips when the account already exists and never
+            # resets a rotated password. Skipped entirely when the secrets are unset.
+            if [[ -n "${SEED_ADMIN_EMAIL}" && -n "${SEED_ADMIN_PASSWORD}" ]]; then
+              echo "==> Ensuring the first admin account exists (${SEED_ADMIN_EMAIL})"
+              "${COMPOSE[@]}" run --rm -e SEED_ADMIN_EMAIL -e SEED_ADMIN_PASSWORD bootstrap-admin
+            else
+              echo "==> SEED_ADMIN_EMAIL/SEED_ADMIN_PASSWORD not set — skipping first-admin bootstrap"
+            fi
 
             echo "==> Starting / updating services"
             "${COMPOSE[@]}" up -d --remove-orphans

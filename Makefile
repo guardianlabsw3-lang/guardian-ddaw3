@@ -12,7 +12,7 @@ COMPOSE_LOCAL := docker compose --env-file $(ENV_LOCAL) -f $(DOCKER_DIR)/docker-
 COMPOSE_VPS   := docker compose -p payorder -f $(DOCKER_DIR)/docker-compose.payorder.vps.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help env up down down-volumes restart logs ps build migrate seed test e2e config vps-config
+.PHONY: help env up down down-volumes restart logs ps build migrate seed bootstrap-admin test e2e config vps-config
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -47,6 +47,10 @@ migrate: env ## Apply database migrations (one-shot)
 
 seed: env ## Seed an admin + an active tenant with a wallet
 	$(COMPOSE_LOCAL) run --rm api node apps/api/dist/infrastructure/persistence/seed.js
+
+bootstrap-admin: env ## Create the first admin from SEED_ADMIN_EMAIL/SEED_ADMIN_PASSWORD (idempotent, no demo tenant)
+	$(COMPOSE_LOCAL) run --rm -e SEED_ADMIN_EMAIL -e SEED_ADMIN_PASSWORD api \
+		node apps/api/dist/infrastructure/persistence/bootstrap-admin.js
 
 test: ## Run the full unit/integration test suite (host)
 	npm test

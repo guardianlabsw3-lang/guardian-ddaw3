@@ -144,6 +144,23 @@ services:
     restart: 'no'
     logging: *default-logging
 
+  # One-shot: create the FIRST admin panel account from SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
+  # (idempotent; creates NO demo tenant). Not in any `depends_on` — the deploy runs it explicitly
+  # after migrate. The credentials are passed at run time (CI: `run --rm -e SEED_ADMIN_EMAIL
+  # -e SEED_ADMIN_PASSWORD bootstrap-admin`) so the panel password is not baked into .env.vps.
+  # With neither var set the entrypoint just skips, so the service is always safe to run.
+  bootstrap-admin:
+    image: ${DOCKERHUB_USERNAME:?DOCKERHUB_USERNAME nao definido}/payorder-api:${IMAGE_TAG_API:-latest}
+    container_name: payorder_bootstrap_admin
+    command: ['node', 'apps/api/dist/infrastructure/persistence/bootstrap-admin.js']
+    env_file: ['.env.vps']
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [internal]
+    restart: 'no'
+    logging: *default-logging
+
 volumes:
   payorder_pg:
   payorder_redis:
