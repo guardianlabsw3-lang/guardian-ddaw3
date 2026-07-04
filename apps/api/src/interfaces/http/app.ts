@@ -26,6 +26,8 @@ export interface AppDeps {
   rateLimiter: RateLimiter;
   idempotencyStore: IdempotencyStore;
   corsOrigins: readonly string[];
+  /** Lower-cased emails of the root admin(s) with unrestricted tenant visibility. */
+  rootAdminEmails: readonly string[];
   /** All controller routes, concatenated by the composition root. */
   routes: RouteDefinition[];
 }
@@ -69,7 +71,11 @@ export function createApp(deps: AppDeps): App {
       errorBoundary(deps.logger),
       resolveRoute,
       rateLimitMiddleware(deps.rateLimiter),
-      authMiddleware({ tokens: deps.tokens, apiKeys: deps.apiKeys }),
+      authMiddleware({
+        tokens: deps.tokens,
+        apiKeys: deps.apiKeys,
+        rootAdminEmails: deps.rootAdminEmails,
+      }),
       idempotencyMiddleware(deps.idempotencyStore),
     ],
     dispatch,

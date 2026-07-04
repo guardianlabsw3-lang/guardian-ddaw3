@@ -199,6 +199,60 @@ describe('PayOrder REST API (HTTP integration)', () => {
       expect(res.status).toBe(404);
       expect((res.body as { error: { code: string } }).error.code).toBe('TENANT_WALLET_NOT_SET');
     });
+
+    it('scopes a non-root admin to its own tenant and lets root see all', async () => {
+      const h = await buildHarness();
+      // Root (first-deploy) admin creates a tenant owned by another email.
+      const rootTenantId = await seedActiveTenant(h, WALLET);
+
+      // A second admin self-registers and onboards its own wallet → its own tenant.
+      const reg = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'member@acme.test', password: 'member-secret-pass' },
+      });
+      expect(reg.status).toBe(201);
+      const memberToken = (reg.body as { access_token: string }).access_token;
+      const memberAuth = { authorization: `Bearer ${memberToken}` };
+      const onboarded = await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: memberAuth,
+        body: { stellar_wallet_public_key: VALID_KEYS[1], stellar_network: 'TESTNET' },
+      });
+      const memberTenantId = (onboarded.body as { id: string }).id;
+
+      // The member only sees its own tenant, never the root admin's.
+      const memberList = await h.request({
+        method: 'GET',
+        path: '/api/tenants',
+        headers: memberAuth,
+      });
+      const memberItems = (memberList.body as { items: { id: string; admin_email: string }[] })
+        .items;
+      expect(memberItems).toHaveLength(1);
+      expect(memberItems[0]!.id).toBe(memberTenantId);
+      expect(memberItems[0]!.admin_email).toBe('member@acme.test');
+
+      // And cannot read another tenant by id (403 FORBIDDEN_TENANT).
+      const forbiddenGet = await h.request({
+        method: 'GET',
+        path: `/api/tenants/${rootTenantId}`,
+        headers: memberAuth,
+      });
+      expect(forbiddenGet.status).toBe(403);
+      expect((forbiddenGet.body as { error: { code: string } }).error.code).toBe(
+        'FORBIDDEN_TENANT',
+      );
+
+      // The root admin still sees every tenant.
+      const rootList = await h.request({
+        method: 'GET',
+        path: '/api/tenants',
+        headers: adminAuth(h),
+      });
+      expect((rootList.body as { total: number }).total).toBe(2);
+    });
   });
 
   describe('onboarding (wallet connect on registration)', () => {

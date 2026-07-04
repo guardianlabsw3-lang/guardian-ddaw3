@@ -6,6 +6,8 @@ import type { Middleware, Principal } from '../types.js';
 export interface AuthDeps {
   tokens: TokenService;
   apiKeys: ApiKeyRepository;
+  /** Lower-cased emails of the root admin(s) with unrestricted tenant visibility. */
+  rootAdminEmails: readonly string[];
 }
 
 /**
@@ -19,13 +21,14 @@ export interface AuthDeps {
  * insufficient privileges → `403`.
  */
 export function authMiddleware(deps: AuthDeps): Middleware {
+  const rootAdmins = new Set(deps.rootAdminEmails.map((email) => email.toLowerCase()));
   return async (req, next) => {
     const route = req.route;
     if (!route || route.auth === 'none') {
       return next(req);
     }
 
-    const principal = await resolvePrincipal(req.headers, deps);
+    const principal = await resolvePrincipal(req.headers, deps, rootAdmins);
     if (!principal) {
       throw unauthorized('UNAUTHENTICATED', 'Authentication required');
     }
@@ -49,6 +52,7 @@ export function authMiddleware(deps: AuthDeps): Middleware {
 async function resolvePrincipal(
   headers: Readonly<Record<string, string>>,
   deps: AuthDeps,
+  rootAdmins: ReadonlySet<string>,
 ): Promise<Principal | null> {
   const authorization = headers['authorization'];
   if (authorization && authorization.toLowerCase().startsWith('bearer ')) {
@@ -58,6 +62,8 @@ async function resolvePrincipal(
       id: claims.sub,
       scopes: [],
       allowedTenantIds: null,
+      adminEmail: claims.email,
+      isRootAdmin: rootAdmins.has(claims.email.toLowerCase()),
       label: claims.email,
     };
   }
@@ -84,6 +90,8 @@ async function resolveApiKey(presented: string, repo: ApiKeyRepository): Promise
     id: record.id,
     scopes: record.scopes,
     allowedTenantIds: record.allowedTenantIds,
+    adminEmail: null,
+    isRootAdmin: false,
     label: record.name,
   };
 }
@@ -101,5 +109,23 @@ export function assertTenantAllowed(principal: Principal | undefined, tenantId: 
     throw forbidden('FORBIDDEN_TENANT', 'API key is not allowed to act on this tenant', {
       tenantId,
     });
+  }
+}
+
+/**
+ * Enforce per-admin tenant visibility. The root/first-deploy admin(s) see and manage every
+ * tenant; any other admin login is scoped to the tenant onboarded under its own email
+ * (`tenant.adminEmail`). A mismatch yields `403 FORBIDDEN_TENANT`, mirroring the API-key
+ * allowlist check above. Non-admin principals are left to their own checks.
+ */
+export function assertAdminTenantVisible(
+  principal: Principal | undefined,
+  tenantAdminEmail: string,
+): void {
+  if (!principal || principal.kind !== 'admin' || principal.isRootAdmin) {
+    return;
+  }
+  if ((principal.adminEmail ?? '').toLowerCase() !== tenantAdminEmail.toLowerCase()) {
+    throw forbidden('FORBIDDEN_TENANT', 'Admin is not allowed to access this tenant');
   }
 }

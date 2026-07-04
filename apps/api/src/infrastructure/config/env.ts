@@ -63,6 +63,14 @@ export const EnvSchema = z
       .min(8, 'WEBHOOK_SIGNING_SECRET must be at least 8 characters'),
     CORS_ORIGINS: CorsOriginsSchema,
 
+    // Root/bootstrap admin(s): the only logins allowed to see and manage **every** tenant.
+    // Every other admin login is scoped to the tenant onboarded under its own email. A
+    // comma-separated list; when unset it falls back to the first-deploy seed admin
+    // (`SEED_ADMIN_EMAIL`, default `admin@payorder.local`) so the initial admin is never
+    // locked out of the panel.
+    ROOT_ADMIN_EMAIL: z.string().default(''),
+    SEED_ADMIN_EMAIL: z.string().trim().optional(),
+
     // Stellar — Testnet only.
     STELLAR_NETWORK: StellarNetworkSchema.default('TESTNET'),
     STELLAR_NETWORK_PASSPHRASE: z.string().default(TESTNET_PASSPHRASE),
@@ -106,7 +114,11 @@ export interface AppConfig {
   readonly publicWebUrl: string;
   readonly database: { readonly url: string };
   readonly redis: { readonly url: string };
-  readonly auth: { readonly jwtSecret: string };
+  readonly auth: {
+    readonly jwtSecret: string;
+    /** Lower-cased emails of the root admin(s) with unrestricted tenant visibility. */
+    readonly rootAdminEmails: readonly string[];
+  };
   readonly webhooks: { readonly signingSecret: string };
   readonly stellar: {
     readonly network: StellarNetwork;
@@ -133,6 +145,26 @@ export class EnvValidationError extends Error {
   }
 }
 
+/** First-deploy admin used as the default root when no explicit list is configured. */
+const DEFAULT_ROOT_ADMIN_EMAIL = 'admin@payorder.local';
+
+/**
+ * Resolve the root admin allowlist: the explicit `ROOT_ADMIN_EMAIL` list if provided,
+ * otherwise the single first-deploy seed admin (`SEED_ADMIN_EMAIL`, then a safe default).
+ * Emails are normalized to lower case and de-duplicated so comparisons are case-insensitive.
+ */
+export function resolveRootAdminEmails(rootList: string, seedEmail: string | undefined): string[] {
+  const explicit = rootList
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => email.length > 0);
+  if (explicit.length > 0) {
+    return [...new Set(explicit)];
+  }
+  const fallback = (seedEmail ?? DEFAULT_ROOT_ADMIN_EMAIL).trim().toLowerCase();
+  return fallback.length > 0 ? [fallback] : [];
+}
+
 /** Map the flat validated env into the structured, immutable application config. */
 export function toAppConfig(env: Env): AppConfig {
   return {
@@ -141,7 +173,10 @@ export function toAppConfig(env: Env): AppConfig {
     publicWebUrl: env.PUBLIC_WEB_URL,
     database: { url: env.DATABASE_URL },
     redis: { url: env.REDIS_URL },
-    auth: { jwtSecret: env.JWT_SECRET },
+    auth: {
+      jwtSecret: env.JWT_SECRET,
+      rootAdminEmails: resolveRootAdminEmails(env.ROOT_ADMIN_EMAIL, env.SEED_ADMIN_EMAIL),
+    },
     webhooks: { signingSecret: env.WEBHOOK_SIGNING_SECRET },
     stellar: {
       network: env.STELLAR_NETWORK,
