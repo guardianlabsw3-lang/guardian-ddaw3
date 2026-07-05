@@ -1,6 +1,10 @@
+'use client';
+
 import type { OrderStatus } from '../lib/types';
-import { statusLabel, statusTone } from '../lib/format';
+import { statusTone } from '../lib/format';
+import { useI18n } from '@/src/i18n/LanguageProvider';
 
 export function StatusBadge({ status }: { status: OrderStatus }) {
-  return <span className={`badge ${statusTone(status)}`}>{statusLabel(status)}</span>;
+  const { t } = useI18n();
+  return <span className={`badge ${statusTone(status)}`}>{t(`status.${status}`)}</span>;
 }

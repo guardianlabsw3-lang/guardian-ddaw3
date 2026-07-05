@@ -7,6 +7,7 @@ import { ApiError } from '@/src/lib/api';
 import type { PaymentOrder, Tenant } from '@/src/lib/types';
 import { newIdempotencyKey } from '@/src/auth/session';
 import { DatePicker } from '@/src/components/DatePicker';
+import { useI18n } from '@/src/i18n/LanguageProvider';
 
 /**
  * Manual charge creation (UC-03, spec 16 §3). The destination wallet is **never typed** — on
@@ -20,6 +21,7 @@ export function CreateOrderForm({
   api: PayOrderApi;
   onCreated: (order: PaymentOrder) => void;
 }) {
+  const { t } = useI18n();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantId, setTenantId] = useState('');
   const [amount, setAmount] = useState('');
@@ -34,11 +36,11 @@ export function CreateOrderForm({
     api
       .listTenants()
       .then(setTenants)
-      .catch(() => setError('Falha ao carregar tenants.'));
-  }, [api]);
+      .catch(() => setError(t('createOrder.errorLoadTenants')));
+  }, [api, t]);
 
   const selectedTenant = useMemo(
-    () => tenants.find((t) => t.id === tenantId) ?? null,
+    () => tenants.find((tenant) => tenant.id === tenantId) ?? null,
     [tenants, tenantId],
   );
 
@@ -50,7 +52,7 @@ export function CreateOrderForm({
     event.preventDefault();
     if (!selectedTenant) return;
     if (dueDate && dueDate < todayIso) {
-      setError('O vencimento não pode ser anterior a hoje.');
+      setError(t('createOrder.errorDueDate'));
       return;
     }
     setSubmitting(true);
@@ -70,7 +72,7 @@ export function CreateOrderForm({
       setDescription('');
       setExternalId('');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao criar a cobrança.');
+      setError(err instanceof ApiError ? err.message : t('createOrder.errorSubmit'));
     } finally {
       setSubmitting(false);
     }
@@ -79,9 +81,9 @@ export function CreateOrderForm({
   return (
     <form onSubmit={submit}>
       <div className="field">
-        <label htmlFor="tenant">Tenant destino</label>
+        <label htmlFor="tenant">{t('createOrder.tenant')}</label>
         <select id="tenant" value={tenantId} onChange={(e) => setTenantId(e.target.value)} required>
-          <option value="">Selecione…</option>
+          <option value="">{t('common.select')}</option>
           {tenants.map((tenant) => (
             <option key={tenant.id} value={tenant.id}>
               {tenant.name} ({tenant.document_number})
@@ -92,23 +94,20 @@ export function CreateOrderForm({
 
       {selectedTenant ? (
         <div className="field">
-          <label>Wallet destino (carregada do tenant — somente leitura)</label>
+          <label>{t('createOrder.walletLabel')}</label>
           <input
             readOnly
-            value={selectedTenant.stellar_wallet_public_key ?? '— tenant sem wallet cadastrada —'}
+            value={selectedTenant.stellar_wallet_public_key ?? t('createOrder.noWallet')}
           />
         </div>
       ) : null}
 
       {walletMissing ? (
-        <div className="alert alert-error">
-          O tenant selecionado não possui wallet cadastrada. Cadastre a wallet na aba Tenants antes
-          de criar a cobrança.
-        </div>
+        <div className="alert alert-error">{t('createOrder.walletMissing')}</div>
       ) : null}
 
       <div className="field">
-        <label htmlFor="amount">Valor</label>
+        <label htmlFor="amount">{t('createOrder.amount')}</label>
         <input
           id="amount"
           value={amount}
@@ -121,7 +120,9 @@ export function CreateOrderForm({
 
       <div className="field">
         <label htmlFor="asset">
-          Asset (opcional — padrão: {selectedTenant?.default_asset_code ?? 'do tenant'})
+          {t('createOrder.asset', {
+            default: selectedTenant?.default_asset_code ?? t('createOrder.assetDefaultFallback'),
+          })}
         </label>
         <input
           id="asset"
@@ -132,22 +133,22 @@ export function CreateOrderForm({
       </div>
 
       <div className="field">
-        <label htmlFor="due">Vencimento (opcional)</label>
+        <label htmlFor="due">{t('createOrder.due')}</label>
         <DatePicker id="due" value={dueDate} onChange={setDueDate} min={todayIso} />
       </div>
 
       <div className="field">
-        <label htmlFor="desc">Descrição (opcional)</label>
+        <label htmlFor="desc">{t('createOrder.description')}</label>
         <input
           id="desc"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Cobrança gerada no painel"
+          placeholder={t('createOrder.descriptionPlaceholder')}
         />
       </div>
 
       <div className="field">
-        <label htmlFor="ext">External ID (opcional)</label>
+        <label htmlFor="ext">{t('createOrder.externalId')}</label>
         <input
           id="ext"
           value={externalId}
@@ -164,7 +165,7 @@ export function CreateOrderForm({
         disabled={submitting || !selectedTenant || walletMissing || amount.trim() === ''}
       >
         {submitting ? <span className="spinner" /> : null}
-        Criar cobrança
+        {t('createOrder.submit')}
       </button>
     </form>
   );

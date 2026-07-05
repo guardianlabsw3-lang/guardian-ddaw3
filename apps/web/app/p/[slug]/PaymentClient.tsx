@@ -8,6 +8,8 @@ import { formatAssetAmount, formatDate } from '@/src/lib/format';
 import { StatusBadge } from '@/src/components/StatusBadge';
 import { DetailRow } from '@/src/components/DetailRow';
 import { TestnetBanner } from '@/src/components/TestnetBanner';
+import { LanguageSwitch } from '@/src/components/LanguageSwitch';
+import { useI18n } from '@/src/i18n/LanguageProvider';
 import { connectWallet, WalletError } from '@/src/stellar/freighter';
 import { payOrder } from '@/src/stellar/pay-flow';
 import { deriveOrderRefHex } from '@/src/stellar/scval';
@@ -19,13 +21,8 @@ interface Props {
   initialError: string | null;
 }
 
-function errorMessage(err: unknown): string {
-  if (err instanceof WalletError) return err.message;
-  if (err instanceof Error) return err.message;
-  return 'Ocorreu um erro inesperado.';
-}
-
 export function PaymentClient({ slug, initialOrder, initialError }: Props) {
+  const { t } = useI18n();
   const config = getConfig();
   const [order, setOrder] = useState<PublicPaymentOrder | null>(initialOrder);
   const [loadError, setLoadError] = useState<string | null>(initialError);
@@ -39,6 +36,12 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  function errorMessage(err: unknown): string {
+    if (err instanceof WalletError) return err.message;
+    if (err instanceof Error) return err.message;
+    return t('common.unexpectedError');
+  }
+
   async function refresh() {
     setLoading(true);
     setLoadError(null);
@@ -47,7 +50,7 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
       setOrder(fresh);
       return fresh;
     } catch {
-      setLoadError('Não foi possível carregar a cobrança. Tente atualizar.');
+      setLoadError(t('payment.errorLoad'));
       return null;
     } finally {
       setLoading(false);
@@ -118,18 +121,22 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   if (!order) {
     return (
       <main className="container container-narrow">
+        <div className="toolbar">
+          <div />
+          <LanguageSwitch />
+        </div>
         <TestnetBanner />
         <div className="card">
-          <h1>Cobrança</h1>
+          <h1>{t('payment.title')}</h1>
           {loading ? (
             <p className="muted">
-              <span className="spinner" /> Carregando cobrança…
+              <span className="spinner" /> {t('payment.loading')}
             </p>
           ) : (
             <>
-              <div className="alert alert-error">{loadError ?? 'Cobrança não encontrada.'}</div>
+              <div className="alert alert-error">{loadError ?? t('payment.notFound')}</div>
               <button className="btn" onClick={refresh} disabled={loading}>
-                Atualizar
+                {t('common.updating')}
               </button>
             </>
           )}
@@ -146,39 +153,43 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
 
   return (
     <main className="container container-narrow">
+      <div className="toolbar">
+        <div />
+        <LanguageSwitch />
+      </div>
       <TestnetBanner />
 
       <div className="card">
         <div className="toolbar">
-          <h1>Pagar cobrança</h1>
+          <h1>{t('payment.payTitle')}</h1>
           <StatusBadge status={order.status} />
         </div>
 
-        <p className="muted">Pagamento para</p>
+        <p className="muted">{t('payment.payingFor')}</p>
         <h2 style={{ marginTop: 0 }}>{order.receiver.name}</h2>
 
         <div className="amount">{formatAssetAmount(order.amount, order.asset_code)}</div>
 
         <div style={{ marginTop: 20 }}>
-          <DetailRow label="Carteira destino">
+          <DetailRow label={t('payment.destWallet')}>
             <span className="mono">{order.receiver.wallet_public_key}</span>
           </DetailRow>
           {order.receiver.document ? (
-            <DetailRow label="Documento">{order.receiver.document}</DetailRow>
+            <DetailRow label={t('payment.document')}>{order.receiver.document}</DetailRow>
           ) : null}
-          <DetailRow label="Rede">{order.network}</DetailRow>
-          <DetailRow label="Vencimento">{formatDate(order.due_date)}</DetailRow>
-          <DetailRow label="Hash do payload">
+          <DetailRow label={t('payment.network')}>{order.network}</DetailRow>
+          <DetailRow label={t('payment.dueDate')}>{formatDate(order.due_date)}</DetailRow>
+          <DetailRow label={t('payment.payloadHash')}>
             <span className="mono">{order.canonical_payload_hash}</span>
           </DetailRow>
           {order.soroban_contract_id ? (
-            <DetailRow label="Contrato">
+            <DetailRow label={t('payment.contract')}>
               <a
                 href={contractExplorerUrl(config.explorerBaseUrl, order.soroban_contract_id)}
                 target="_blank"
                 rel="noreferrer"
               >
-                ver no explorer ↗
+                {t('payment.viewExplorer')}
               </a>
             </DetailRow>
           ) : null}
@@ -188,14 +199,14 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
       <div className="card">
         {isPaid ? (
           <div>
-            <div className="alert alert-success">✓ Pagamento confirmado on-chain.</div>
+            <div className="alert alert-success">{t('payment.confirmed')}</div>
             {txHash ? (
               <a
                 href={txExplorerUrl(config.explorerBaseUrl, txHash)}
                 target="_blank"
                 rel="noreferrer"
               >
-                Ver transação no explorer ↗
+                {t('payment.viewTxExplorer')}
               </a>
             ) : null}
           </div>
@@ -203,21 +214,19 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
 
         {awaitingRegistration && !isPaid ? (
           <div>
-            <p className="muted">A cobrança está sendo registrada no contrato. Aguarde…</p>
+            <p className="muted">{t('payment.awaitingRegistration')}</p>
             <button className="btn" onClick={refresh}>
-              Atualizar status
+              {t('payment.updateStatus')}
             </button>
           </div>
         ) : null}
 
-        {isTerminal ? (
-          <p className="muted">Esta cobrança não está mais disponível para pagamento.</p>
-        ) : null}
+        {isTerminal ? <p className="muted">{t('payment.terminal')}</p> : null}
 
         {isActive && !isPaid && confirming ? (
           <div className="stack">
             <p className="muted">
-              <span className="spinner" /> Transação enviada, aguardando confirmação do pagamento…
+              <span className="spinner" /> {t('payment.confirming')}
             </p>
           </div>
         ) : null}
@@ -231,22 +240,21 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
                 disabled={connecting}
               >
                 {connecting ? <span className="spinner" /> : null}
-                Conectar carteira (Freighter)
+                {t('payment.connectWallet')}
               </button>
             ) : (
               <>
-                <DetailRow label="Pagando com">
+                <DetailRow label={t('payment.payingWith')}>
                   <span className="mono">{wallet}</span>
                 </DetailRow>
                 <button className="btn btn-primary btn-block" onClick={onPay} disabled={paying}>
                   {paying ? <span className="spinner" /> : null}
-                  Pagar {formatAssetAmount(order.amount, order.asset_code)}
+                  {t('payment.pay', { amount: formatAssetAmount(order.amount, order.asset_code) })}
                 </button>
               </>
             )}
             <p className="muted" style={{ fontSize: '0.82rem' }}>
-              Não custodial: a transação é assinada na sua carteira. Sua chave secreta nunca é
-              enviada ao servidor.
+              {t('payment.nonCustodialNote')}
             </p>
           </div>
         ) : null}

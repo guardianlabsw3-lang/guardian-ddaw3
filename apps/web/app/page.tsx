@@ -1,21 +1,26 @@
+'use client';
+
 import Link from 'next/link';
+import { useI18n } from '@/src/i18n/LanguageProvider';
+import { LanguageSwitch } from '@/src/components/LanguageSwitch';
 
 export default function HomePage() {
+  const { t } = useI18n();
   return (
     <main className="container container-narrow">
-      <h1>PayOrder W3 Guardian</h1>
-      <p className="muted">
-        Cobranças estruturadas (DDA) liquidadas na <strong>Stellar Testnet</strong>. Pagamento não
-        custodial: o pagador assina no próprio navegador e a chave secreta nunca chega ao backend.
-      </p>
+      <div className="toolbar">
+        <h1 style={{ margin: 0 }}>{t('home.title')}</h1>
+        <LanguageSwitch />
+      </div>
+      <p className="muted">{t('home.subtitle', { network: 'Stellar Testnet' })}</p>
 
       <div className="card">
-        <h2>Páginas</h2>
+        <h2>{t('home.pagesTitle')}</h2>
         <div className="stack">
-          <Link href="/admin">→ Painel administrativo</Link>
+          <Link href="/admin">{t('home.adminLink')}</Link>
           <span className="muted">
-            A página pública de pagamento é acessada pelo link{' '}
-            <span className="mono">/p/&lt;slug&gt;</span> gerado ao criar uma cobrança.
+            {t('home.publicPageNotePrefix')} <span className="mono">/p/&lt;slug&gt;</span>{' '}
+            {t('home.publicPageNoteSuffix')}
           </span>
         </div>
       </div>
