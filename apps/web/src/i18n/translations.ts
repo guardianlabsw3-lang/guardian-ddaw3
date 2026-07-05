@@ -31,7 +31,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     'notFound.subtitle': 'A cobrança ou página solicitada não existe.',
     'notFound.back': '← Voltar ao início',
 
-    'login.brand': 'PayOrder W3',
     'login.heroTitle': 'Um Guard Rail de cobranças.',
     'login.heroSubtitle':
       'Transforma cobranças digitais de qualquer origem em ordens de pagamento verificáveis on-chain. Antes de pagar, o usuário vê quem vai receber, o valor e a prova on-chain.',
@@ -190,7 +189,6 @@ export const translations: Record<Locale, Record<string, string>> = {
     'notFound.subtitle': 'The requested charge or page does not exist.',
     'notFound.back': '← Back to home',
 
-    'login.brand': 'PayOrder W3',
     'login.heroTitle': 'A billing guard rail.',
     'login.heroSubtitle':
       'Turns digital charges from any source into payment orders verifiable on-chain. Before paying, the user sees who will receive, the amount and the on-chain proof.',

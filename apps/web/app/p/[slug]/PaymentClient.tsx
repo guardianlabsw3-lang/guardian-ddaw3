@@ -9,6 +9,7 @@ import { StatusBadge } from '@/src/components/StatusBadge';
 import { DetailRow } from '@/src/components/DetailRow';
 import { TestnetBanner } from '@/src/components/TestnetBanner';
 import { LanguageSwitch } from '@/src/components/LanguageSwitch';
+import { BrandLogo } from '@/src/components/BrandLogo';
 import { useI18n } from '@/src/i18n/LanguageProvider';
 import { connectWallet, WalletError } from '@/src/stellar/freighter';
 import { payOrder } from '@/src/stellar/pay-flow';
@@ -122,7 +123,7 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
     return (
       <main className="container container-narrow">
         <div className="toolbar">
-          <div />
+          <BrandLogo size={34} />
           <LanguageSwitch />
         </div>
         <TestnetBanner />
@@ -154,7 +155,7 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   return (
     <main className="container container-narrow">
       <div className="toolbar">
-        <div />
+        <BrandLogo size={34} />
         <LanguageSwitch />
       </div>
       <TestnetBanner />

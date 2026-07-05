@@ -6,6 +6,7 @@ import { PayOrderApi } from '@/src/lib/api';
 import { clearToken, loadToken, saveToken } from '@/src/auth/session';
 import { useI18n } from '@/src/i18n/LanguageProvider';
 import { LanguageSwitch } from '@/src/components/LanguageSwitch';
+import { BrandMark } from '@/src/components/BrandLogo';
 import { LoginForm } from './LoginForm';
 import { TenantsPanel } from './TenantsPanel';
 import { OrdersPanel } from './OrdersPanel';
@@ -46,9 +47,12 @@ export function AdminDashboard() {
   return (
     <main className="container">
       <div className="toolbar">
-        <div>
-          <h1>{t('admin.title')}</h1>
-          <span className="muted">{t('admin.subtitle')}</span>
+        <div className="page-brand">
+          <BrandMark size={44} className="brand-mark" />
+          <div>
+            <h1>{t('admin.title')}</h1>
+            <span className="muted">{t('admin.subtitle')}</span>
+          </div>
         </div>
         <div className="inline">
           <LanguageSwitch />

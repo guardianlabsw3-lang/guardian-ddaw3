@@ -420,6 +420,37 @@ h2 {
   flex-wrap: wrap;
 }
 
+/* Brand lockup (src/components/BrandLogo.tsx): mark + "PayOrder W3" wordmark */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  flex: none;
+  display: block;
+}
+
+.brand-name {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.brand-accent {
+  color: #e7b84e;
+}
+
+/* Mark + page title/subtitle block (admin toolbar) */
+.page-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .tabs {
   display: flex;
   gap: 4px;
@@ -532,27 +563,10 @@ tbody tr:hover {
 .login-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
-.login-brand-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  background: rgba(238, 241, 248, 0.08);
-  border: 1.5px solid rgba(238, 241, 248, 0.5);
-  color: #eef1f8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-}
-
-.login-brand-name {
-  font-weight: 700;
-  font-size: 1.05rem;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+.login-brand .brand-name {
+  font-size: 1.1rem;
 }
 
 .login-hero {
