@@ -53,7 +53,7 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/worker/package.json ./apps/worker/package.json
 COPY --from=build /app/apps/worker/dist ./apps/worker/dist
 
-# OpenAPI contract served by the public docs routes (`/api/docs`, `/api/docs/openapi.yaml`).
+# OpenAPI contract served by the public docs routes (`/docs`, `/docs/redoc`, `/docs/openapi.yaml`).
 COPY --from=build /app/openapi ./openapi
 
 # Drop privileges (the `node` user ships with the base image).

@@ -28,18 +28,27 @@ describe('PayOrder REST API (HTTP integration)', () => {
   });
 
   describe('public API documentation', () => {
-    it('serves the interactive docs page without authentication', async () => {
+    it('serves the Swagger UI docs page without authentication', async () => {
       const h = await buildHarness();
-      const res = await h.request({ method: 'GET', path: '/api/docs' });
+      const res = await h.request({ method: 'GET', path: '/docs' });
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('text/html');
       expect(res.body as string).toContain('SwaggerUIBundle');
-      expect(res.body as string).toContain('/api/docs/openapi.yaml');
+      expect(res.body as string).toContain('/docs/openapi.yaml');
+    });
+
+    it('serves the ReDoc docs page without authentication', async () => {
+      const h = await buildHarness();
+      const res = await h.request({ method: 'GET', path: '/docs/redoc' });
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/html');
+      expect(res.body as string).toContain('<redoc');
+      expect(res.body as string).toContain('/docs/openapi.yaml');
     });
 
     it('serves the raw OpenAPI contract without authentication', async () => {
       const h = await buildHarness();
-      const res = await h.request({ method: 'GET', path: '/api/docs/openapi.yaml' });
+      const res = await h.request({ method: 'GET', path: '/docs/openapi.yaml' });
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toContain('application/yaml');
       expect(res.body as string).toContain('openapi: 3.1.0');

@@ -63,6 +63,7 @@ describe('OpenAPI contract', () => {
       ['/health', 'get'],
       ['/ready', 'get'],
       ['/docs', 'get'],
+      ['/docs/redoc', 'get'],
       ['/docs/openapi.yaml', 'get'],
       ['/public/payment-orders/{slug}', 'get'],
     ];

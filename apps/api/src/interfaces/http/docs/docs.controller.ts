@@ -34,13 +34,16 @@ function findSpecPath(): string | null {
   return null;
 }
 
+/** URL of the raw OpenAPI document both UIs load. */
+const SPEC_URL = '/docs/openapi.yaml';
+
 /** Minimal self-contained Swagger UI page pointing at the served OpenAPI document. */
-const DOCS_HTML = `<!DOCTYPE html>
+const SWAGGER_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PayOrder W3 Guardian API — Documentation</title>
+  <title>PayOrder W3 Guardian API — Swagger UI</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
   <style>body { margin: 0; }</style>
 </head>
@@ -49,7 +52,7 @@ const DOCS_HTML = `<!DOCTYPE html>
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script>
     window.ui = SwaggerUIBundle({
-      url: '/api/docs/openapi.yaml',
+      url: '${SPEC_URL}',
       dom_id: '#swagger-ui',
       deepLinking: true,
       presets: [SwaggerUIBundle.presets.apis],
@@ -60,10 +63,27 @@ const DOCS_HTML = `<!DOCTYPE html>
 </html>
 `;
 
+/** Minimal self-contained ReDoc page pointing at the served OpenAPI document. */
+const REDOC_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PayOrder W3 Guardian API — ReDoc</title>
+  <style>body { margin: 0; }</style>
+</head>
+<body>
+  <redoc spec-url="${SPEC_URL}"></redoc>
+  <script src="https://unpkg.com/redoc@2/bundles/redoc.standalone.js"></script>
+</body>
+</html>
+`;
+
 /**
- * Public, unauthenticated API documentation: `/api/docs` renders an interactive Swagger UI
- * and `/api/docs/openapi.yaml` serves the raw OpenAPI contract so external consumers can
- * generate clients against it. Read-only, no tenant data — safe to expose without auth.
+ * Public, unauthenticated API documentation. `/docs` renders Swagger UI and `/docs/redoc`
+ * renders a ReDoc reference — both drive off `/docs/openapi.yaml`, which serves the raw
+ * OpenAPI contract so external consumers can generate clients against it. Read-only, no
+ * tenant data — safe to expose without auth.
  */
 export function docsRoutes(deps: DocsControllerDeps = {}): RouteDefinition[] {
   let cachedSpec: string | null = null;
@@ -82,13 +102,19 @@ export function docsRoutes(deps: DocsControllerDeps = {}): RouteDefinition[] {
   return [
     {
       method: 'GET',
-      path: '/api/docs',
+      path: '/docs',
       auth: 'none',
-      handler: () => text(200, DOCS_HTML, 'text/html; charset=utf-8'),
+      handler: () => text(200, SWAGGER_HTML, 'text/html; charset=utf-8'),
     },
     {
       method: 'GET',
-      path: '/api/docs/openapi.yaml',
+      path: '/docs/redoc',
+      auth: 'none',
+      handler: () => text(200, REDOC_HTML, 'text/html; charset=utf-8'),
+    },
+    {
+      method: 'GET',
+      path: '/docs/openapi.yaml',
       auth: 'none',
       handler: () => text(200, loadSpec(), 'application/yaml; charset=utf-8'),
     },
