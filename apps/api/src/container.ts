@@ -168,6 +168,7 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
       cancel: new CancelPaymentOrder({ orders, clock, publicWebUrl, webhooks }),
       resend: new ResendWebhook(orders, webhooks),
       audit,
+      tenants,
     }),
     ...publicRoutes({
       publicOrder: new GetPublicPaymentOrder({

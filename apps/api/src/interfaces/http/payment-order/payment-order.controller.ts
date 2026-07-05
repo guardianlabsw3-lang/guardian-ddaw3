@@ -6,7 +6,7 @@ import type {
   GetPaymentOrderStatus,
   ListPaymentOrders,
 } from '../../../application/payment-order/index.js';
-import type { AuditLogger } from '../../../application/ports/index.js';
+import type { AuditLogger, TenantRepository } from '../../../application/ports/index.js';
 import { forbidden } from '../../../application/shared/errors.js';
 import type { ResendWebhook } from '../../../application/webhooks/index.js';
 import { auditActor as actor } from '../audit-actor.js';
@@ -32,6 +32,7 @@ export interface PaymentOrderControllerDeps {
   cancel: CancelPaymentOrder;
   resend: ResendWebhook;
   audit: AuditLogger;
+  tenants: TenantRepository;
 }
 
 /**
@@ -41,10 +42,33 @@ export interface PaymentOrderControllerDeps {
  * admin-only.
  */
 export function paymentOrderRoutes(deps: PaymentOrderControllerDeps): RouteDefinition[] {
+  // A non-root admin only ever sees orders belonging to the tenant onboarded under its own
+  // email — mirrors the per-admin visibility scoping used for tenant reads (spec 08 §6).
+  // `undefined` means the principal isn't a scoped admin and shouldn't be restricted here.
+  const resolveScopedTenantId = async (req: HttpRequest): Promise<string | undefined> => {
+    const principal = req.principal;
+    if (!principal || principal.kind !== 'admin' || principal.isRootAdmin) {
+      return undefined;
+    }
+    const tenant = await deps.tenants.findByAdminEmail(principal.adminEmail ?? '');
+    return tenant?.id ?? '';
+  };
+
   const guardOrderTenant = async (req: HttpRequest, orderId: string): Promise<void> => {
-    if (req.principal?.kind === 'api-key' && req.principal.allowedTenantIds !== null) {
-      const view = await deps.get.execute(orderId);
-      assertTenantAllowed(req.principal, view.tenantId);
+    const principal = req.principal;
+    const isRestrictedApiKey = principal?.kind === 'api-key' && principal.allowedTenantIds !== null;
+    const isScopedAdmin = principal?.kind === 'admin' && !principal.isRootAdmin;
+    if (!isRestrictedApiKey && !isScopedAdmin) {
+      return;
+    }
+    const view = await deps.get.execute(orderId);
+    if (isRestrictedApiKey) {
+      assertTenantAllowed(principal, view.tenantId);
+      return;
+    }
+    const scopedTenantId = await resolveScopedTenantId(req);
+    if (scopedTenantId !== view.tenantId) {
+      throw forbidden('FORBIDDEN_TENANT', 'Admin is not allowed to access this tenant');
     }
   };
 
@@ -77,13 +101,21 @@ export function paymentOrderRoutes(deps: PaymentOrderControllerDeps): RouteDefin
       auth: 'any',
       scopes: ['orders:read'],
       handler: async (req) => {
-        const tenantId = optionalParam(req.query, 'tenant_id');
+        let tenantId = optionalParam(req.query, 'tenant_id');
         // An allowlisted API key must scope its listing to a tenant it may see.
         if (req.principal?.kind === 'api-key' && req.principal.allowedTenantIds !== null) {
           if (!tenantId) {
             throw forbidden('FORBIDDEN_TENANT', 'A tenant_id filter is required for this API key');
           }
           assertTenantAllowed(req.principal, tenantId);
+        } else if (req.principal?.kind === 'admin' && !req.principal.isRootAdmin) {
+          // A non-root admin's listing is forced to its own tenant; the query param cannot
+          // widen it to another tenant's orders.
+          const tenant = await deps.tenants.findByAdminEmail(req.principal.adminEmail ?? '');
+          if (!tenant) {
+            return json(200, paginated({ items: [], total: 0 }, orderResponse));
+          }
+          tenantId = tenant.id;
         }
         const { limit, offset } = parsePagination(req.query);
         const page = await deps.list.execute({
