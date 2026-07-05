@@ -8,6 +8,7 @@ import { connectWallet, WalletError } from '@/src/stellar/freighter';
 import { truncateMiddle } from '@/src/lib/format';
 import { useI18n } from '@/src/i18n/LanguageProvider';
 import { LanguageSwitch } from '@/src/components/LanguageSwitch';
+import { BrandLogo } from '@/src/components/BrandLogo';
 
 type Mode = 'login' | 'register';
 /** After registering, the admin is asked to connect a wallet before entering the panel. */
@@ -21,31 +22,7 @@ function BrandAside() {
   return (
     <aside className="login-aside">
       <div className="login-brand">
-        <span className="login-brand-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
-            <path
-              d="M12 2.5l7 2.6v5.2c0 4.8-3 8.9-7 10.2-4-1.3-7-5.4-7-10.2V5.1l7-2.6z"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinejoin="round"
-            />
-            <rect
-              x="9.4"
-              y="11.2"
-              width="5.2"
-              height="4.2"
-              rx="0.8"
-              stroke="currentColor"
-              strokeWidth="1.3"
-            />
-            <path
-              d="M10.3 11.2v-1.4a1.7 1.7 0 0 1 3.4 0v1.4"
-              stroke="currentColor"
-              strokeWidth="1.3"
-            />
-          </svg>
-        </span>
-        <div className="login-brand-name">{t('login.brand')}</div>
+        <BrandLogo size={40} />
       </div>
 
       <div className="login-hero">
