@@ -174,7 +174,8 @@ export const translations: Record<Locale, Record<string, string>> = {
       'O valor informado não corresponde ao valor registrado on-chain para esta cobrança.',
     'payment.errorContract.assetMismatch':
       'O ativo informado não corresponde ao ativo registrado on-chain para esta cobrança.',
-    'payment.errorContract.unauthorized': 'A carteira conectada não está autorizada a pagar esta cobrança.',
+    'payment.errorContract.unauthorized':
+      'A carteira conectada não está autorizada a pagar esta cobrança.',
     'payment.errorContract.generic':
       'O contrato recusou o pagamento (erro #{code}). Atualize a página e tente novamente.',
   },
@@ -344,7 +345,8 @@ export const translations: Record<Locale, Record<string, string>> = {
       'The amount does not match the value registered on-chain for this charge.',
     'payment.errorContract.assetMismatch':
       'The asset does not match the one registered on-chain for this charge.',
-    'payment.errorContract.unauthorized': 'The connected wallet is not authorized to pay this charge.',
+    'payment.errorContract.unauthorized':
+      'The connected wallet is not authorized to pay this charge.',
     'payment.errorContract.generic':
       'The contract rejected the payment (error #{code}). Refresh the page and try again.',
   },
