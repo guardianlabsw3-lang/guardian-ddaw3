@@ -3,6 +3,7 @@ import type { AssetInput } from './scval';
 import { buildPayTransaction } from './payment';
 import { signXdr } from './freighter';
 import { NETWORK_PASSPHRASE } from './network';
+import { asContractError } from './contract-error';
 
 /**
  * Orchestrates a non-custodial contract `pay`: build → simulate/prepare → Freighter sign →
@@ -45,8 +46,14 @@ export async function payOrder(params: PayParams): Promise<PayResult> {
   });
 
   // Simulate + assemble the Soroban footprint/auth; throws on a contract error (e.g. the
-  // order is not ACTIVE, amount/asset mismatch, or expired — spec 07 §8).
-  const prepared = await server.prepareTransaction(tx);
+  // order is not ACTIVE, amount/asset mismatch, or expired — spec 07 §8). Re-throw those as a
+  // typed `ContractError` so the caller can show a clear message instead of the raw HostError.
+  let prepared;
+  try {
+    prepared = await server.prepareTransaction(tx);
+  } catch (err) {
+    throw asContractError(err);
+  }
 
   const signedXdr = await signXdr(prepared.toXDR(), NETWORK_PASSPHRASE);
   const signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);

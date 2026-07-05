@@ -164,6 +164,19 @@ export const translations: Record<Locale, Record<string, string>> = {
     'payment.pay': 'Pagar {amount}',
     'payment.nonCustodialNote':
       'Não custodial: a transação é assinada na sua carteira. Sua chave secreta nunca é enviada ao servidor.',
+    'payment.errorContract.notActive':
+      'Esta cobrança não está mais disponível para pagamento — ela pode já ter sido paga, cancelada ou vencida. Atualizamos o status abaixo.',
+    'payment.errorContract.expired':
+      'O prazo desta cobrança venceu; ela não pode mais ser paga. Atualizamos o status abaixo.',
+    'payment.errorContract.notFound':
+      'Esta cobrança ainda não está registrada no contrato. Aguarde alguns instantes e tente novamente.',
+    'payment.errorContract.amountMismatch':
+      'O valor informado não corresponde ao valor registrado on-chain para esta cobrança.',
+    'payment.errorContract.assetMismatch':
+      'O ativo informado não corresponde ao ativo registrado on-chain para esta cobrança.',
+    'payment.errorContract.unauthorized': 'A carteira conectada não está autorizada a pagar esta cobrança.',
+    'payment.errorContract.generic':
+      'O contrato recusou o pagamento (erro #{code}). Atualize a página e tente novamente.',
   },
   en: {
     'common.loading': 'Loading…',
@@ -321,5 +334,18 @@ export const translations: Record<Locale, Record<string, string>> = {
     'payment.pay': 'Pay {amount}',
     'payment.nonCustodialNote':
       'Non-custodial: the transaction is signed in your wallet. Your secret key is never sent to the server.',
+    'payment.errorContract.notActive':
+      'This charge is no longer available for payment — it may already be paid, cancelled or expired. We refreshed the status below.',
+    'payment.errorContract.expired':
+      'This charge is past its due date and can no longer be paid. We refreshed the status below.',
+    'payment.errorContract.notFound':
+      'This charge is not registered on the contract yet. Please wait a moment and try again.',
+    'payment.errorContract.amountMismatch':
+      'The amount does not match the value registered on-chain for this charge.',
+    'payment.errorContract.assetMismatch':
+      'The asset does not match the one registered on-chain for this charge.',
+    'payment.errorContract.unauthorized': 'The connected wallet is not authorized to pay this charge.',
+    'payment.errorContract.generic':
+      'The contract rejected the payment (error #{code}). Refresh the page and try again.',
   },
 };

@@ -14,6 +14,7 @@ import { useI18n } from '@/src/i18n/LanguageProvider';
 import { connectWallet, WalletError } from '@/src/stellar/freighter';
 import { payOrder } from '@/src/stellar/pay-flow';
 import { deriveOrderRefHex } from '@/src/stellar/scval';
+import { ContractError, CONTRACT_ERROR_CODES } from '@/src/stellar/contract-error';
 import { contractExplorerUrl, txExplorerUrl } from '@/src/stellar/network';
 
 interface Props {
@@ -37,7 +38,27 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  function contractErrorKey(code: number): string {
+    switch (code) {
+      case CONTRACT_ERROR_CODES.OrderNotActive:
+        return 'payment.errorContract.notActive';
+      case CONTRACT_ERROR_CODES.OrderExpired:
+        return 'payment.errorContract.expired';
+      case CONTRACT_ERROR_CODES.OrderNotFound:
+        return 'payment.errorContract.notFound';
+      case CONTRACT_ERROR_CODES.AmountMismatch:
+        return 'payment.errorContract.amountMismatch';
+      case CONTRACT_ERROR_CODES.AssetMismatch:
+        return 'payment.errorContract.assetMismatch';
+      case CONTRACT_ERROR_CODES.Unauthorized:
+        return 'payment.errorContract.unauthorized';
+      default:
+        return 'payment.errorContract.generic';
+    }
+  }
+
   function errorMessage(err: unknown): string {
+    if (err instanceof ContractError) return t(contractErrorKey(err.code), { code: err.code });
     if (err instanceof WalletError) return err.message;
     if (err instanceof Error) return err.message;
     return t('common.unexpectedError');
@@ -114,6 +135,16 @@ export function PaymentClient({ slug, initialOrder, initialError }: Props) {
       await pollUntilPaid();
     } catch (err) {
       setPayError(errorMessage(err));
+      // The contract is the authority: if it rejected because the order already left ACTIVE
+      // (paid/expired elsewhere), the off-chain status shown here is stale — reload it so the
+      // page reflects the real state instead of keeping the (now invalid) Pay button.
+      if (
+        err instanceof ContractError &&
+        (err.code === CONTRACT_ERROR_CODES.OrderNotActive ||
+          err.code === CONTRACT_ERROR_CODES.OrderExpired)
+      ) {
+        void refresh();
+      }
     } finally {
       setPaying(false);
     }
