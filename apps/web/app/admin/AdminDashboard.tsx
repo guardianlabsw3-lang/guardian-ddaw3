@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { getConfig } from '@/src/config';
 import { PayOrderApi } from '@/src/lib/api';
 import { clearToken, loadToken, saveToken } from '@/src/auth/session';
+import { useI18n } from '@/src/i18n/LanguageProvider';
+import { LanguageSwitch } from '@/src/components/LanguageSwitch';
 import { LoginForm } from './LoginForm';
 import { TenantsPanel } from './TenantsPanel';
 import { OrdersPanel } from './OrdersPanel';
@@ -11,6 +13,7 @@ import { OrdersPanel } from './OrdersPanel';
 type Tab = 'tenants' | 'orders';
 
 export function AdminDashboard() {
+  const { t } = useI18n();
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>('tenants');
@@ -27,9 +30,9 @@ export function AdminDashboard() {
   if (!token) {
     return (
       <LoginForm
-        onAuthenticated={(t) => {
-          saveToken(t);
-          setToken(t);
+        onAuthenticated={(newToken) => {
+          saveToken(newToken);
+          setToken(newToken);
         }}
       />
     );
@@ -44,12 +47,15 @@ export function AdminDashboard() {
     <main className="container">
       <div className="toolbar">
         <div>
-          <h1>Painel administrativo</h1>
-          <span className="muted">PayOrder W3 Guardian · Testnet</span>
+          <h1>{t('admin.title')}</h1>
+          <span className="muted">{t('admin.subtitle')}</span>
         </div>
-        <button className="btn" onClick={logout}>
-          Sair
-        </button>
+        <div className="inline">
+          <LanguageSwitch />
+          <button className="btn" onClick={logout}>
+            {t('admin.logout')}
+          </button>
+        </div>
       </div>
 
       <div className="tabs">
@@ -57,13 +63,13 @@ export function AdminDashboard() {
           className={`tab ${tab === 'tenants' ? 'active' : ''}`}
           onClick={() => setTab('tenants')}
         >
-          Tenants
+          {t('admin.tabTenants')}
         </button>
         <button
           className={`tab ${tab === 'orders' ? 'active' : ''}`}
           onClick={() => setTab('orders')}
         >
-          Cobranças
+          {t('admin.tabOrders')}
         </button>
       </div>
 

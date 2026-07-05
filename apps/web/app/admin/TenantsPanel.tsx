@@ -5,6 +5,7 @@ import type { PayOrderApi } from '@/src/lib/api';
 import { ApiError } from '@/src/lib/api';
 import type { Tenant } from '@/src/lib/types';
 import { truncateMiddle } from '@/src/lib/format';
+import { useI18n } from '@/src/i18n/LanguageProvider';
 
 function WalletEditor({
   tenant,
@@ -15,6 +16,7 @@ function WalletEditor({
   api: PayOrderApi;
   onSaved: (tenant: Tenant) => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(tenant.stellar_wallet_public_key ?? '');
   const [saving, setSaving] = useState(false);
@@ -28,7 +30,7 @@ function WalletEditor({
       onSaved(updated);
       setOpen(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao salvar a wallet.');
+      setError(err instanceof ApiError ? err.message : t('tenants.errorSaveWallet'));
     } finally {
       setSaving(false);
     }
@@ -37,7 +39,7 @@ function WalletEditor({
   if (!open) {
     return (
       <button className="link-btn" onClick={() => setOpen(true)}>
-        {tenant.stellar_wallet_public_key ? 'editar' : 'cadastrar'}
+        {tenant.stellar_wallet_public_key ? t('tenants.edit') : t('tenants.register')}
       </button>
     );
   }
@@ -47,17 +49,17 @@ function WalletEditor({
       <input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="G... (chave pública Stellar Testnet)"
+        placeholder={t('tenants.walletPlaceholder')}
         spellCheck={false}
       />
       {error ? <div className="alert alert-error">{error}</div> : null}
       <div className="inline">
         <button className="btn btn-primary" onClick={save} disabled={saving || value.trim() === ''}>
           {saving ? <span className="spinner" /> : null}
-          Salvar
+          {t('common.save')}
         </button>
         <button className="btn" onClick={() => setOpen(false)} disabled={saving}>
-          Cancelar
+          {t('common.cancel')}
         </button>
       </div>
     </div>
@@ -73,6 +75,7 @@ function ActivateButton({
   api: PayOrderApi;
   onActivated: (tenant: Tenant) => void;
 }) {
+  const { t } = useI18n();
   const [activating, setActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +85,7 @@ function ActivateButton({
     try {
       onActivated(await api.activateTenant(tenant.id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao ativar o tenant.');
+      setError(err instanceof ApiError ? err.message : t('tenants.errorActivate'));
     } finally {
       setActivating(false);
     }
@@ -92,7 +95,7 @@ function ActivateButton({
     <div className="stack">
       <button className="btn btn-primary" onClick={activate} disabled={activating}>
         {activating ? <span className="spinner" /> : null}
-        Ativar
+        {t('tenants.activate')}
       </button>
       {error ? <div className="alert alert-error">{error}</div> : null}
     </div>
@@ -100,6 +103,7 @@ function ActivateButton({
 }
 
 export function TenantsPanel({ api }: { api: PayOrderApi }) {
+  const { t } = useI18n();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,42 +114,42 @@ export function TenantsPanel({ api }: { api: PayOrderApi }) {
     try {
       setTenants(await api.listTenants());
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao carregar tenants.');
+      setError(err instanceof ApiError ? err.message : t('tenants.errorLoad'));
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   function onTenantSaved(updated: Tenant) {
-    setTenants((current) => current.map((t) => (t.id === updated.id ? updated : t)));
+    setTenants((current) => current.map((tenant) => (tenant.id === updated.id ? updated : tenant)));
   }
 
   return (
     <div className="card">
       <div className="toolbar">
-        <h2 style={{ margin: 0 }}>Tenants</h2>
+        <h2 style={{ margin: 0 }}>{t('tenants.title')}</h2>
         <button className="btn" onClick={() => void load()} disabled={loading}>
-          Atualizar
+          {t('common.updating')}
         </button>
       </div>
 
       {error ? <div className="alert alert-error">{error}</div> : null}
-      {loading ? <p className="muted">Carregando…</p> : null}
+      {loading ? <p className="muted">{t('common.loading')}</p> : null}
 
-      {!loading && tenants.length === 0 ? <p className="muted">Nenhum tenant cadastrado.</p> : null}
+      {!loading && tenants.length === 0 ? <p className="muted">{t('tenants.empty')}</p> : null}
 
       {tenants.length > 0 ? (
         <table>
           <thead>
             <tr>
-              <th>Nome</th>
-              <th>Documento</th>
-              <th>Status</th>
-              <th>Wallet destino</th>
+              <th>{t('tenants.colName')}</th>
+              <th>{t('tenants.colDocument')}</th>
+              <th>{t('tenants.colStatus')}</th>
+              <th>{t('tenants.colWallet')}</th>
             </tr>
           </thead>
           <tbody>
@@ -174,7 +178,7 @@ export function TenantsPanel({ api }: { api: PayOrderApi }) {
                     <span className="mono">
                       {tenant.stellar_wallet_public_key
                         ? truncateMiddle(tenant.stellar_wallet_public_key, 8, 8)
-                        : '— não cadastrada —'}
+                        : t('common.notRegistered')}
                     </span>
                     <WalletEditor tenant={tenant} api={api} onSaved={onTenantSaved} />
                   </div>

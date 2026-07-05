@@ -7,6 +7,7 @@ import type { PaymentOrder, PaymentOrderEvent } from '@/src/lib/types';
 import { formatAssetAmount, formatDate, formatDateTime } from '@/src/lib/format';
 import { StatusBadge } from '@/src/components/StatusBadge';
 import { DetailRow } from '@/src/components/DetailRow';
+import { useI18n } from '@/src/i18n/LanguageProvider';
 
 export function OrderDetail({
   api,
@@ -19,6 +20,7 @@ export function OrderDetail({
   onClose: () => void;
   onChanged: (order: PaymentOrder) => void;
 }) {
+  const { t } = useI18n();
   const [events, setEvents] = useState<PaymentOrderEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,11 +32,11 @@ export function OrderDetail({
     try {
       setEvents(await api.getOrderEvents(order.id));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao carregar eventos.');
+      setError(err instanceof ApiError ? err.message : t('orderDetail.errorLoadEvents'));
     } finally {
       setLoading(false);
     }
-  }, [api, order.id]);
+  }, [api, order.id, t]);
 
   useEffect(() => {
     void loadEvents();
@@ -47,7 +49,7 @@ export function OrderDetail({
       const updated = await api.cancelOrder(order.id);
       onChanged(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao cancelar.');
+      setError(err instanceof ApiError ? err.message : t('orderDetail.errorCancel'));
     } finally {
       setCancelling(false);
     }
@@ -56,33 +58,35 @@ export function OrderDetail({
   return (
     <div className="card">
       <div className="toolbar">
-        <h2 style={{ margin: 0 }}>Detalhes da cobrança</h2>
+        <h2 style={{ margin: 0 }}>{t('orderDetail.title')}</h2>
         <button className="btn" onClick={onClose}>
-          Fechar
+          {t('common.close')}
         </button>
       </div>
 
-      <DetailRow label="ID">
+      <DetailRow label={t('orderDetail.id')}>
         <span className="mono">{order.id}</span>
       </DetailRow>
-      <DetailRow label="Status">
+      <DetailRow label={t('orderDetail.status')}>
         <StatusBadge status={order.status} />
       </DetailRow>
-      <DetailRow label="Valor">{formatAssetAmount(order.amount, order.asset_code)}</DetailRow>
-      <DetailRow label="Carteira destino">
+      <DetailRow label={t('orderDetail.amount')}>
+        {formatAssetAmount(order.amount, order.asset_code)}
+      </DetailRow>
+      <DetailRow label={t('orderDetail.destWallet')}>
         <span className="mono">{order.receiver_wallet_public_key}</span>
       </DetailRow>
-      <DetailRow label="Hash do payload">
+      <DetailRow label={t('orderDetail.payloadHash')}>
         <span className="mono">{order.canonical_payload_hash}</span>
       </DetailRow>
-      <DetailRow label="Vencimento">{formatDate(order.due_date)}</DetailRow>
-      <DetailRow label="Link público">
+      <DetailRow label={t('orderDetail.dueDate')}>{formatDate(order.due_date)}</DetailRow>
+      <DetailRow label={t('orderDetail.publicLink')}>
         <a href={order.public_payment_url} target="_blank" rel="noreferrer">
           {order.public_payment_slug}
         </a>
       </DetailRow>
       {order.blockchain_transaction_hash ? (
-        <DetailRow label="Tx on-chain">
+        <DetailRow label={t('orderDetail.onChainTx')}>
           <span className="mono">{order.blockchain_transaction_hash}</span>
         </DetailRow>
       ) : null}
@@ -91,21 +95,23 @@ export function OrderDetail({
         <div style={{ marginTop: 16 }}>
           <button className="btn" onClick={cancel} disabled={cancelling}>
             {cancelling ? <span className="spinner" /> : null}
-            Cancelar cobrança
+            {t('orderDetail.cancelOrder')}
           </button>
         </div>
       ) : null}
 
-      <h2 style={{ marginTop: 24 }}>Eventos</h2>
+      <h2 style={{ marginTop: 24 }}>{t('orderDetail.events')}</h2>
       {error ? <div className="alert alert-error">{error}</div> : null}
-      {loading ? <p className="muted">Carregando eventos…</p> : null}
-      {!loading && events.length === 0 ? <p className="muted">Sem eventos.</p> : null}
+      {loading ? <p className="muted">{t('orderDetail.loadingEvents')}</p> : null}
+      {!loading && events.length === 0 ? (
+        <p className="muted">{t('orderDetail.noEvents')}</p>
+      ) : null}
       {events.length > 0 ? (
         <table>
           <thead>
             <tr>
-              <th>Evento</th>
-              <th>Data</th>
+              <th>{t('orderDetail.colEvent')}</th>
+              <th>{t('orderDetail.colDate')}</th>
             </tr>
           </thead>
           <tbody>
