@@ -32,10 +32,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'notFound.back': '← Voltar ao início',
 
     'login.brand': 'PayOrder W3',
-    'login.heroTitle':
-      'Um guard rail de cobrança Web3 (DDA) que transforma cobranças digitais de qualquer origem em ordens de pagamento verificáveis on-chain, sem digitar a carteira de destino e sem custódia da sua seed.',
+    'login.heroTitle': 'Um Guard Rail de cobranças.',
     'login.heroSubtitle':
-      'Cadastre boletos, gere uma prova criptográfica de integridade e publique um selo verificável por qualquer pessoa.',
+      'Transforma cobranças digitais de qualquer origem em ordens de pagamento verificáveis on-chain. Antes de pagar, o usuário vê quem vai receber, o valor e a prova on-chain.',
     'login.eyebrow': 'Acesso',
     'login.titleLogin': 'Entre na sua conta',
     'login.titleRegister': 'Criar conta',
@@ -192,10 +191,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'notFound.back': '← Back to home',
 
     'login.brand': 'PayOrder W3',
-    'login.heroTitle':
-      'A Web3 billing rail (DDA) that turns digital charges from any source into payment orders verifiable on-chain — without typing the destination wallet and without custody of your seed.',
+    'login.heroTitle': 'A billing guard rail.',
     'login.heroSubtitle':
-      'Register invoices, generate a cryptographic proof of integrity, and publish a seal verifiable by anyone.',
+      'Turns digital charges from any source into payment orders verifiable on-chain. Before paying, the user sees who will receive, the amount and the on-chain proof.',
     'login.eyebrow': 'Access',
     'login.titleLogin': 'Log in to your account',
     'login.titleRegister': 'Create account',
