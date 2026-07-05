@@ -59,6 +59,7 @@ import {
   authRoutes,
   createApp,
   createHttpServer,
+  docsRoutes,
   healthRoutes,
   onboardingRoutes,
   paymentOrderRoutes,
@@ -185,6 +186,7 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
         sorobanRpcCheck(config.stellar.sorobanRpcUrl),
       ],
     }),
+    ...docsRoutes(),
   ];
 
   const app = createApp({

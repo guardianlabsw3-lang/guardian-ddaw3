@@ -18,6 +18,7 @@ tags:
   - name: Payment Orders
   - name: Public
   - name: Health
+  - name: Docs
 
 security:
   - AdminJWT: []
@@ -77,6 +78,30 @@ paths:
       responses:
         "200": { description: Ready }
         "503": { description: Not ready }
+
+  /docs:
+    get:
+      tags: [Docs]
+      summary: Documentação interativa da API (Swagger UI)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema: { type: string }
+
+  /docs/openapi.yaml:
+    get:
+      tags: [Docs]
+      summary: Contrato OpenAPI bruto (YAML)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/yaml:
+              schema: { type: string }
 
   /tenants:
     post:

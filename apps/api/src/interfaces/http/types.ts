@@ -77,6 +77,19 @@ export function json(
   return { status, body, headers };
 }
 
+/**
+ * Build a non-JSON response (HTML, YAML, plain text). The string body is sent verbatim by
+ * the server adapter, which only JSON-serializes responses without an explicit content-type.
+ */
+export function text(
+  status: number,
+  body: string,
+  contentType: string,
+  headers: Record<string, string> = {},
+): HttpResponse {
+  return { status, body, headers: { ...headers, 'content-type': contentType } };
+}
+
 /** 204 No Content. */
 export function noContent(headers: Record<string, string> = {}): HttpResponse {
   return { status: 204, body: undefined, headers };

@@ -37,6 +37,7 @@ import {
   authRoutes,
   createApp,
   createHttpRequest,
+  docsRoutes,
   healthRoutes,
   onboardingRoutes,
   paymentOrderRoutes,
@@ -198,6 +199,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     ...healthRoutes({
       checks: [{ name: 'database', check: async () => true }],
     }),
+    ...docsRoutes(),
   ];
 
   const app = createApp({
