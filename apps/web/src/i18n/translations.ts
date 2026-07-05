@@ -31,11 +31,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     'notFound.subtitle': 'A cobrança ou página solicitada não existe.',
     'notFound.back': '← Voltar ao início',
 
-    'login.brand': 'Guardian Seal',
-    'login.brandTagline': 'The trust seal for digital records',
-    'login.heroTitle': 'O selo de confiança para registros digitais.',
+    'login.brand': 'PayOrder W3',
+    'login.heroTitle':
+      'Um trilho de cobrança Web3 (DDA) que transforma cobranças digitais de qualquer origem em ordens de pagamento verificáveis on-chain, sem digitar a carteira de destino e sem custódia da sua seed.',
     'login.heroSubtitle':
-      'Cadastre boletos, gere uma prova criptográfica de integridade e publique um Guardian Seal verificável por qualquer pessoa.',
+      'Cadastre boletos, gere uma prova criptográfica de integridade e publique um selo verificável por qualquer pessoa.',
     'login.eyebrow': 'Acesso',
     'login.titleLogin': 'Entre na sua conta',
     'login.titleRegister': 'Criar conta',
@@ -191,11 +191,11 @@ export const translations: Record<Locale, Record<string, string>> = {
     'notFound.subtitle': 'The requested charge or page does not exist.',
     'notFound.back': '← Back to home',
 
-    'login.brand': 'Guardian Seal',
-    'login.brandTagline': 'The trust seal for digital records',
-    'login.heroTitle': 'The trust seal for digital records.',
+    'login.brand': 'PayOrder W3',
+    'login.heroTitle':
+      'A Web3 billing rail (DDA) that turns digital charges from any source into payment orders verifiable on-chain — without typing the destination wallet and without custody of your seed.',
     'login.heroSubtitle':
-      'Register invoices, generate a cryptographic proof of integrity, and publish a Guardian Seal verifiable by anyone.',
+      'Register invoices, generate a cryptographic proof of integrity, and publish a seal verifiable by anyone.',
     'login.eyebrow': 'Access',
     'login.titleLogin': 'Log in to your account',
     'login.titleRegister': 'Create account',
