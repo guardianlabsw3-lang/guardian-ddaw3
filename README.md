@@ -260,6 +260,17 @@ Rode `make help` para listar todos os targets. Veja
 para detalhes e [`13-docker-vps-traefik.md`](docs/specs/payorder-w3-guardian/13-docker-vps-traefik.md)
 para o deploy seguro em VPS atrás de um Traefik existente.
 
+### Fluxo de deploy (CI/Release)
+
+![Fluxo de deploy: git push/PR → CI Gates → Build & Push → Deploy VPS → Smoke Test](docs/assets/deploy-flow.gif)
+
+O pipeline em [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em cinco etapas:
+`git push/PR` → **CI Gates** (lint, typecheck, test, validação do compose, contrato Soroban) →
+**Build & Push** (imagens Docker publicadas no Docker Hub) → **Deploy VPS** (via SSH: pull,
+migrations, `up -d`) → **Smoke Test** (`/health`, `/ready`). Build/push/deploy só rodam em push
+para `main`. Detalhes completos em
+[`14-deployment.md`](docs/specs/payorder-w3-guardian/14-deployment.md).
+
 ## 12. Invariantes do produto (sempre verdadeiras)
 
 1. O MVP opera **apenas em Stellar Testnet**.
