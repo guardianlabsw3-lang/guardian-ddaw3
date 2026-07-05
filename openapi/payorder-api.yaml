@@ -91,6 +91,18 @@ paths:
             text/html:
               schema: { type: string }
 
+  /docs/redoc:
+    get:
+      tags: [Docs]
+      summary: Documentação de referência da API (ReDoc)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema: { type: string }
+
   /docs/openapi.yaml:
     get:
       tags: [Docs]
