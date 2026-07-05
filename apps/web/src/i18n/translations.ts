@@ -33,7 +33,7 @@ export const translations: Record<Locale, Record<string, string>> = {
 
     'login.brand': 'PayOrder W3',
     'login.heroTitle':
-      'Um trilho de cobrança Web3 (DDA) que transforma cobranças digitais de qualquer origem em ordens de pagamento verificáveis on-chain, sem digitar a carteira de destino e sem custódia da sua seed.',
+      'Um guard rail de cobrança Web3 (DDA) que transforma cobranças digitais de qualquer origem em ordens de pagamento verificáveis on-chain, sem digitar a carteira de destino e sem custódia da sua seed.',
     'login.heroSubtitle':
       'Cadastre boletos, gere uma prova criptográfica de integridade e publique um selo verificável por qualquer pessoa.',
     'login.eyebrow': 'Acesso',
