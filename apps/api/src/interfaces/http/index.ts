@@ -18,3 +18,4 @@ export * from './payment-order/payment-order.controller.js';
 export * from './public/public.controller.js';
 export * from './auth/auth.controller.js';
 export * from './health/health.controller.js';
+export * from './docs/docs.controller.js';

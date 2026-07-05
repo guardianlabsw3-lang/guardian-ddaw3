@@ -36,10 +36,21 @@ async function handle(app: App, req: IncomingMessage, res: ServerResponse): Prom
   });
 
   const result = await app.handle(httpReq);
-  const body = result.body === undefined ? '' : JSON.stringify(result.body);
   const responseHeaders: Record<string, string> = { ...result.headers };
+  const explicitType = Object.keys(responseHeaders).some(
+    (name) => name.toLowerCase() === 'content-type',
+  );
+
+  let body = '';
   if (result.body !== undefined) {
-    responseHeaders['content-type'] = 'application/json';
+    // String bodies with an explicit content-type (HTML, YAML) are sent verbatim; everything
+    // else keeps the default JSON serialization.
+    if (typeof result.body === 'string' && explicitType) {
+      body = result.body;
+    } else {
+      body = JSON.stringify(result.body);
+      responseHeaders['content-type'] = 'application/json';
+    }
   }
   res.writeHead(result.status, responseHeaders);
   res.end(body);

@@ -62,6 +62,8 @@ describe('OpenAPI contract', () => {
       ['/auth/register', 'post'],
       ['/health', 'get'],
       ['/ready', 'get'],
+      ['/docs', 'get'],
+      ['/docs/openapi.yaml', 'get'],
       ['/public/payment-orders/{slug}', 'get'],
     ];
     for (const [path, method] of publicOps) {

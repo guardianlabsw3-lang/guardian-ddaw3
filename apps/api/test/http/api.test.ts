@@ -27,6 +27,26 @@ describe('PayOrder REST API (HTTP integration)', () => {
     });
   });
 
+  describe('public API documentation', () => {
+    it('serves the interactive docs page without authentication', async () => {
+      const h = await buildHarness();
+      const res = await h.request({ method: 'GET', path: '/api/docs' });
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('text/html');
+      expect(res.body as string).toContain('SwaggerUIBundle');
+      expect(res.body as string).toContain('/api/docs/openapi.yaml');
+    });
+
+    it('serves the raw OpenAPI contract without authentication', async () => {
+      const h = await buildHarness();
+      const res = await h.request({ method: 'GET', path: '/api/docs/openapi.yaml' });
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/yaml');
+      expect(res.body as string).toContain('openapi: 3.1.0');
+      expect(res.body as string).toContain('PayOrder W3 Guardian API');
+    });
+  });
+
   describe('auth', () => {
     it('logs an admin in and rejects bad credentials identically', async () => {
       const h = await buildHarness();
