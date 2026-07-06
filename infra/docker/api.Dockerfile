@@ -49,6 +49,13 @@ COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build /app/apps/api/dist ./apps/api/dist
+# `@stellar/stellar-sdk` (and its deps axios, bignumber.js, eventsource) cannot be hoisted to the
+# root `node_modules` — the workspace resolves an older `@stellar/stellar-base` there (pulled by
+# `@stellar/freighter-api` in the web app) — so npm nests them under the API workspace. They must
+# ship too, or `apps/api/dist/**` fails at runtime with ERR_MODULE_NOT_FOUND. Node resolves them
+# from the importing file's real path, so the worker (which loads the API's compiled modules) is
+# covered by this same copy.
+COPY --from=build /app/apps/api/node_modules ./apps/api/node_modules
 
 COPY --from=build /app/apps/worker/package.json ./apps/worker/package.json
 COPY --from=build /app/apps/worker/dist ./apps/worker/dist
