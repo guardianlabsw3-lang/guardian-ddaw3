@@ -39,3 +39,4 @@ Thumbs.db
 .next/
 .turbo/
 next-env.d.ts
+.test
