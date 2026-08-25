@@ -1,6 +1,7 @@
 import type {
   CancelPaymentOrder,
   CreatePaymentOrder,
+  CreatePaymentOrderBatch,
   GetPaymentOrder,
   GetPaymentOrderEvents,
   GetPaymentOrderStatus,
@@ -11,6 +12,7 @@ import { forbidden } from '../../../application/shared/errors.js';
 import type { ResendWebhook } from '../../../application/webhooks/index.js';
 import { auditActor as actor } from '../audit-actor.js';
 import {
+  batchResponse,
   eventResponse,
   orderResponse,
   orderStatusResponse,
@@ -25,6 +27,7 @@ import type { HttpRequest } from '../types.js';
 
 export interface PaymentOrderControllerDeps {
   create: CreatePaymentOrder;
+  createBatch: CreatePaymentOrderBatch;
   get: GetPaymentOrder;
   list: ListPaymentOrders;
   status: GetPaymentOrderStatus;
@@ -37,7 +40,10 @@ export interface PaymentOrderControllerDeps {
 
 /**
  * Payment-order endpoints (TASK-019, spec 08 §3). Creation is idempotent (header +
- * `(tenant_id, external_id)`) and returns `202` (on-chain registration is async). Reads are
+ * `(tenant_id, external_id)`) and returns `202` (on-chain registration is async). Batch
+ * creation (feature "batch-payment-orders") reuses the same per-item rules unchanged via
+ * `CreatePaymentOrderBatch` and returns `200` with a per-item report — one bad item never
+ * aborts the others. Reads are
  * scope-gated for API keys and constrained by the key's tenant allowlist; cancellation is
  * admin-only.
  */
@@ -93,6 +99,41 @@ export function paymentOrderRoutes(deps: PaymentOrderControllerDeps): RouteDefin
           diff: { tenantId: view.tenantId, amount: view.amount, assetCode: view.assetCode },
         });
         return json(202, orderResponse(view));
+      },
+    },
+    {
+      method: 'POST',
+      path: '/api/payment-orders/batch',
+      auth: 'any',
+      scopes: ['orders:create'],
+      idempotent: true,
+      handler: async (req) => {
+        const body = req.json<{ orders?: unknown[] }>();
+        const mapped = { orders: (body?.orders ?? []).map(toCreateOrderInput) };
+        const result = await deps.createBatch.execute(mapped, {
+          correlationId: req.requestId,
+          allowedTenantIds: req.principal?.allowedTenantIds ?? null,
+        });
+        // Only successful items get an audit entry — identical in shape to the single-create
+        // entry above — so "one audit entry per created order" holds regardless of whether it
+        // came through this endpoint or the single one (which never audits a thrown error).
+        for (const item of result.results) {
+          if (item.ok) {
+            await deps.audit.record({
+              ...actor(req.principal),
+              action: 'order.create',
+              entityType: 'payment_order',
+              entityId: item.order.id,
+              correlationId: req.requestId,
+              diff: {
+                tenantId: item.order.tenantId,
+                amount: item.order.amount,
+                assetCode: item.order.assetCode,
+              },
+            });
+          }
+        }
+        return json(200, batchResponse(result));
       },
     },
     {

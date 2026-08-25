@@ -1,5 +1,6 @@
 import type { LoginResult } from '../../application/auth/index.js';
 import type {
+  CreatePaymentOrderBatchResult,
   PaymentOrderEventView,
   PaymentOrderStatusView,
   PaymentOrderView,
@@ -123,6 +124,22 @@ export function orderResponse(view: PaymentOrderView): Body {
     created_at: view.createdAt.toISOString(),
     updated_at: view.updatedAt.toISOString(),
     paid_at: view.paidAt ? view.paidAt.toISOString() : null,
+  };
+}
+
+/**
+ * Map a batch-creation result to the wire envelope (feature "batch-payment-orders"): each
+ * item is either a nested, already-shaped `order` or an `error`, keyed by its input `index` so
+ * the caller can line results back up with what it sent, plus a `summary` count.
+ */
+export function batchResponse(result: CreatePaymentOrderBatchResult): Body {
+  return {
+    summary: result.summary,
+    results: result.results.map((item) =>
+      item.ok
+        ? { index: item.index, order: orderResponse(item.order) }
+        : { index: item.index, error: item.error },
+    ),
   };
 }
 

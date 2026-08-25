@@ -3,6 +3,7 @@ import {
   AssignTenantWallet,
   CancelPaymentOrder,
   CreatePaymentOrder,
+  CreatePaymentOrderBatch,
   CreateTenant,
   DeactivateTenant,
   GetPaymentOrder,
@@ -133,6 +134,15 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
 
   const createTenant = new CreateTenant(tenants, ids, slugs, clock, stellarAccounts);
   const assignWallet = new AssignTenantWallet(tenants, orders, clock, stellarAccounts);
+  const createPaymentOrder = new CreatePaymentOrder({
+    tenants,
+    orders,
+    ids,
+    slugs,
+    clock,
+    registrationQueue: queue,
+    publicWebUrl,
+  });
 
   const routes = [
     ...authRoutes({
@@ -155,15 +165,8 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
       audit,
     }),
     ...paymentOrderRoutes({
-      create: new CreatePaymentOrder({
-        tenants,
-        orders,
-        ids,
-        slugs,
-        clock,
-        registrationQueue: queue,
-        publicWebUrl,
-      }),
+      create: createPaymentOrder,
+      createBatch: new CreatePaymentOrderBatch(createPaymentOrder, logger),
       get: new GetPaymentOrder(orders, publicWebUrl),
       list: new ListPaymentOrders(orders, publicWebUrl),
       status: new GetPaymentOrderStatus(orders, explorerBaseUrl),
