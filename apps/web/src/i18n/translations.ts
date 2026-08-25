@@ -58,10 +58,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'login.errorInvalidEmail': 'Informe um e-mail válido.',
     'login.walletTitle': 'Conecte sua carteira',
     'login.walletSubtitle':
-      'Conta criada! Conecte sua carteira Stellar (Testnet) para definir a carteira de recebimento do seu tenant. Nunca pedimos sua chave secreta — apenas a chave pública.',
+      'Conecte sua carteira Stellar (Testnet) para definir a carteira de recebimento do seu tenant — obrigatório para acessar o painel. Nunca pedimos sua chave secreta — apenas a chave pública.',
     'login.walletSaved': 'Carteira {address} salva.',
     'login.walletConnect': 'Conectar carteira',
-    'login.walletSkip': 'Pular por enquanto',
     'login.walletErrorSave': 'Falha ao salvar a carteira.',
     'login.walletErrorConnect':
       'Não foi possível conectar a carteira. Verifique a extensão Freighter.',
@@ -230,10 +229,9 @@ export const translations: Record<Locale, Record<string, string>> = {
     'login.errorInvalidEmail': 'Please enter a valid email.',
     'login.walletTitle': 'Connect your wallet',
     'login.walletSubtitle':
-      'Account created! Connect your Stellar wallet (Testnet) to set your tenant receiving wallet. We never ask for your secret key — only the public key.',
+      "Connect your Stellar wallet (Testnet) to set your tenant's receiving wallet — required to access the panel. We never ask for your secret key — only the public key.",
     'login.walletSaved': 'Wallet {address} saved.',
     'login.walletConnect': 'Connect wallet',
-    'login.walletSkip': 'Skip for now',
     'login.walletErrorSave': 'Failed to save the wallet.',
     'login.walletErrorConnect': 'Could not connect the wallet. Check the Freighter extension.',
 

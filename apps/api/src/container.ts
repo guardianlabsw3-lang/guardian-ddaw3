@@ -8,6 +8,7 @@ import {
   GetPaymentOrder,
   GetPaymentOrderEvents,
   GetPaymentOrderStatus,
+  GetOnboardingStatus,
   GetPublicPaymentOrder,
   GetTenant,
   GetTenantWallet,
@@ -150,6 +151,7 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
     }),
     ...onboardingRoutes({
       onboardWallet: new OnboardTenantWallet(tenants, createTenant, assignWallet),
+      getStatus: new GetOnboardingStatus(tenants),
       audit,
     }),
     ...paymentOrderRoutes({
@@ -197,6 +199,7 @@ export function buildApiContainer(raw: NodeJS.ProcessEnv = process.env): ApiCont
     idempotencyStore,
     corsOrigins: config.api.corsOrigins,
     rootAdminEmails: config.auth.rootAdminEmails,
+    tenants,
     routes,
   });
 

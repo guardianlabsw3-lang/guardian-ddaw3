@@ -218,6 +218,7 @@ export async function buildE2EHarness(options: E2EHarnessOptions = {}): Promise<
     corsOrigins: ['http://localhost:3001'],
     // The seeded admin is the first-deploy/root admin with full tenant visibility.
     rootAdminEmails: [adminEmail],
+    tenants,
     routes,
   });
 
