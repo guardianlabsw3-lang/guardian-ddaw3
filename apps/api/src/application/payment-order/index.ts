@@ -1,6 +1,7 @@
 export * from './input.js';
 export * from './views.js';
 export * from './create-payment-order.js';
+export * from './create-payment-order-batch.js';
 export * from './get-payment-order.js';
 export * from './cancel-payment-order.js';
 export * from './public-view.js';

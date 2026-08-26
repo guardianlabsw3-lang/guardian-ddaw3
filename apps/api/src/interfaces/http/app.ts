@@ -2,6 +2,7 @@ import type {
   ApiKeyRepository,
   IdempotencyStore,
   Logger,
+  TenantRepository,
   TokenService,
 } from '../../application/ports/index.js';
 import { ApplicationError } from '../../application/shared/errors.js';
@@ -10,6 +11,7 @@ import { corsMiddleware } from './middleware/cors.js';
 import { authMiddleware } from './middleware/auth.js';
 import { idempotencyMiddleware } from './middleware/idempotency.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
+import { walletRequiredMiddleware } from './middleware/wallet-required.js';
 import {
   errorBoundary,
   requestIdMiddleware,
@@ -28,6 +30,8 @@ export interface AppDeps {
   corsOrigins: readonly string[];
   /** Lower-cased emails of the root admin(s) with unrestricted tenant visibility. */
   rootAdminEmails: readonly string[];
+  /** Resolves the tenant for `walletRequiredMiddleware` (feature "onboarding-wallet-required"). */
+  tenants: TenantRepository;
   /** All controller routes, concatenated by the composition root. */
   routes: RouteDefinition[];
 }
@@ -42,8 +46,9 @@ export interface App {
 /**
  * Assemble the HTTP application (framework-free). Order matters: `requestId` is outermost so
  * every response (including errors) is correlated; `securityHeaders`/`cors` wrap the error
- * boundary so even `4xx`/`5xx` carry them; route resolution precedes rate-limit, auth and
- * idempotency, which read the matched route's metadata.
+ * boundary so even `4xx`/`5xx` carry them; route resolution precedes rate-limit, auth,
+ * wallet-required and idempotency, which read the matched route's metadata. Wallet-required
+ * runs right after auth because it needs the resolved `principal`.
  */
 export function createApp(deps: AppDeps): App {
   const router = new Router();
@@ -76,6 +81,7 @@ export function createApp(deps: AppDeps): App {
         apiKeys: deps.apiKeys,
         rootAdminEmails: deps.rootAdminEmails,
       }),
+      walletRequiredMiddleware({ tenants: deps.tenants }),
       idempotencyMiddleware(deps.idempotencyStore),
     ],
     dispatch,

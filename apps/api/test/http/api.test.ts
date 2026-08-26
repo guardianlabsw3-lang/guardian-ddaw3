@@ -319,6 +319,82 @@ describe('PayOrder REST API (HTTP integration)', () => {
       });
       expect(res.status).toBe(401);
     });
+
+    it('reports has_wallet:false before connecting and true after (GET status)', async () => {
+      const h = await buildHarness();
+      const reg = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'fresh@acme.test', password: 'fresh-secret-pass' },
+      });
+      const auth = {
+        authorization: `Bearer ${(reg.body as { access_token: string }).access_token}`,
+      };
+
+      const before = await h.request({
+        method: 'GET',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+      });
+      expect(before.status).toBe(200);
+      expect((before.body as { has_wallet: boolean }).has_wallet).toBe(false);
+
+      await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+        body: { stellar_wallet_public_key: WALLET, stellar_network: 'TESTNET' },
+      });
+
+      const after = await h.request({
+        method: 'GET',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+      });
+      expect((after.body as { has_wallet: boolean }).has_wallet).toBe(true);
+    });
+
+    it('blocks every other admin route with 403 WALLET_REQUIRED until a wallet is connected', async () => {
+      const h = await buildHarness();
+      const reg = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'walletless@acme.test', password: 'walletless-secret' },
+      });
+      const auth = {
+        authorization: `Bearer ${(reg.body as { access_token: string }).access_token}`,
+      };
+
+      // Any admin route other than the onboarding-wallet pair is blocked.
+      const blocked = await h.request({ method: 'GET', path: '/api/tenants', headers: auth });
+      expect(blocked.status).toBe(403);
+      expect((blocked.body as { error: { code: string } }).error.code).toBe('WALLET_REQUIRED');
+
+      // The onboarding-wallet routes stay reachable so the gate can actually be cleared.
+      const status = await h.request({
+        method: 'GET',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+      });
+      expect(status.status).toBe(200);
+
+      await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+        body: { stellar_wallet_public_key: WALLET, stellar_network: 'TESTNET' },
+      });
+
+      // Once connected, the previously blocked route works.
+      const unblocked = await h.request({ method: 'GET', path: '/api/tenants', headers: auth });
+      expect(unblocked.status).toBe(200);
+    });
+
+    it('never blocks the root admin, even without its own tenant wallet', async () => {
+      const h = await buildHarness();
+      const res = await h.request({ method: 'GET', path: '/api/tenants', headers: adminAuth(h) });
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('payment orders', () => {
@@ -558,6 +634,214 @@ describe('PayOrder REST API (HTTP integration)', () => {
       });
       expect(res.status).toBe(422);
       expect((res.body as { error: { code: string } }).error.code).toBe('INVALID_STATE_TRANSITION');
+    });
+  });
+
+  describe('batch payment orders', () => {
+    it('creates every item and returns 200 with a per-item report in input order', async () => {
+      const h = await buildHarness();
+      const tenantId = await seedActiveTenant(h, WALLET);
+      const res = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'batch-1' },
+        body: {
+          orders: [
+            { tenant_id: tenantId, amount: '10', external_id: 'BATCH-1' },
+            { tenant_id: tenantId, amount: '20', external_id: 'BATCH-2' },
+            { tenant_id: tenantId, amount: '30', external_id: 'BATCH-3' },
+          ],
+        },
+      });
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        summary: { total: number; created: number; failed: number };
+        results: { index: number; order?: { status: string; external_id: string } }[];
+      };
+      expect(body.summary).toEqual({ total: 3, created: 3, failed: 0 });
+      expect(body.results.map((r) => r.index)).toEqual([0, 1, 2]);
+      expect(body.results.map((r) => r.order?.external_id)).toEqual([
+        'BATCH-1',
+        'BATCH-2',
+        'BATCH-3',
+      ]);
+      expect(body.results.every((r) => r.order?.status === 'CREATED')).toBe(true);
+    });
+
+    it('isolates a failing item, preserving order and per-item error codes', async () => {
+      const h = await buildHarness();
+      const tenantId = await seedActiveTenant(h, WALLET);
+      const res = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'batch-partial' },
+        body: {
+          orders: [
+            { tenant_id: tenantId, amount: '10', external_id: 'OK-1' },
+            { tenant_id: '00000000-0000-7000-8000-0000000000ff', amount: '10' },
+            { tenant_id: tenantId, amount: '10', external_id: 'OK-2' },
+          ],
+        },
+      });
+      expect(res.status).toBe(200);
+      const body = res.body as {
+        summary: { total: number; created: number; failed: number };
+        results: { index: number; order?: unknown; error?: { code: string } }[];
+      };
+      expect(body.summary).toEqual({ total: 3, created: 2, failed: 1 });
+      expect(body.results[0]!.order).toBeDefined();
+      expect(body.results[1]!.error?.code).toBe('TENANT_NOT_FOUND');
+      expect(body.results[2]!.order).toBeDefined();
+    });
+
+    it('rejects an empty batch (422 BATCH_EMPTY) and an oversized one (422 BATCH_TOO_LARGE)', async () => {
+      const h = await buildHarness();
+      const tenantId = await seedActiveTenant(h, WALLET);
+
+      const empty = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'batch-empty' },
+        body: { orders: [] },
+      });
+      expect(empty.status).toBe(422);
+      expect((empty.body as { error: { code: string } }).error.code).toBe('BATCH_EMPTY');
+
+      const tooMany = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'batch-too-large' },
+        body: {
+          orders: Array.from({ length: 101 }, (_, i) => ({
+            tenant_id: tenantId,
+            amount: '10',
+            external_id: `TOO-MANY-${i}`,
+          })),
+        },
+      });
+      expect(tooMany.status).toBe(422);
+      expect((tooMany.body as { error: { code: string } }).error.code).toBe('BATCH_TOO_LARGE');
+    });
+
+    it('requires an Idempotency-Key (400)', async () => {
+      const h = await buildHarness();
+      const tenantId = await seedActiveTenant(h, WALLET);
+      const res = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey },
+        body: { orders: [{ tenant_id: tenantId, amount: '10' }] },
+      });
+      expect(res.status).toBe(400);
+      expect((res.body as { error: { code: string } }).error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+    });
+
+    it('replays the stored response for the same key and 409s on a divergent body', async () => {
+      const h = await buildHarness();
+      const tenantId = await seedActiveTenant(h, WALLET);
+      const headers = { 'x-api-key': h.apiKey, 'idempotency-key': 'batch-same-key' };
+      const body = { orders: [{ tenant_id: tenantId, amount: '10', external_id: 'REPLAY-1' }] };
+
+      const first = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers,
+        body,
+      });
+      expect(first.status).toBe(200);
+      const ordersAfterFirst = h.orders.byId.size;
+
+      const replay = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers,
+        body,
+      });
+      expect(replay.body).toEqual(first.body);
+      expect(replay.headers['idempotent-replayed']).toBe('true');
+      expect(h.orders.byId.size).toBe(ordersAfterFirst); // the handler did not re-run
+
+      const conflict = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers,
+        body: { orders: [{ tenant_id: tenantId, amount: '999', external_id: 'REPLAY-1' }] },
+      });
+      expect(conflict.status).toBe(409);
+      expect((conflict.body as { error: { code: string } }).error.code).toBe(
+        'IDEMPOTENCY_KEY_CONFLICT',
+      );
+    });
+
+    it('dedupes by (tenant_id, external_id) both within one batch and across separate batches', async () => {
+      const h = await buildHarness();
+      const tenantId = await seedActiveTenant(h, WALLET);
+
+      const withinBatch = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'dedupe-within' },
+        body: {
+          orders: [
+            { tenant_id: tenantId, amount: '10', external_id: 'DUP-1' },
+            { tenant_id: tenantId, amount: '999', external_id: 'DUP-1' },
+          ],
+        },
+      });
+      const withinResults = (
+        withinBatch.body as { results: { order?: { id: string; amount: string } }[] }
+      ).results;
+      expect(withinResults[0]!.order!.id).toBe(withinResults[1]!.order!.id);
+      expect(withinResults[1]!.order!.amount).toBe('10.0000000'); // first write wins
+
+      const secondBatch = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'dedupe-across' },
+        body: { orders: [{ tenant_id: tenantId, amount: '777', external_id: 'DUP-1' }] },
+      });
+      const secondResult = (secondBatch.body as { results: { order: { id: string } }[] })
+        .results[0]!.order;
+      expect(secondResult.id).toBe(withinResults[0]!.order!.id);
+    });
+
+    it('weights the rate limit by item count, not by request count', async () => {
+      const h = await buildHarness({ rateLimit: 5 });
+      const tenantId = await seedActiveTenant(h, WALLET);
+
+      // A single batch of 10 items alone exceeds a 5/minute budget.
+      const overLimit = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'rl-over' },
+        body: {
+          orders: Array.from({ length: 10 }, (_, i) => ({
+            tenant_id: tenantId,
+            amount: '10',
+            external_id: `RL-${i}`,
+          })),
+        },
+      });
+      expect(overLimit.status).toBe(429);
+    });
+
+    it('still succeeds for a batch under the rate-limit budget', async () => {
+      const h = await buildHarness({ rateLimit: 50 });
+      const tenantId = await seedActiveTenant(h, WALLET);
+
+      const underLimit = await h.request({
+        method: 'POST',
+        path: '/api/payment-orders/batch',
+        headers: { 'x-api-key': h.apiKey, 'idempotency-key': 'rl-under' },
+        body: {
+          orders: Array.from({ length: 3 }, (_, i) => ({
+            tenant_id: tenantId,
+            amount: '10',
+            external_id: `RL-OK-${i}`,
+          })),
+        },
+      });
+      expect(underLimit.status).toBe(200);
     });
   });
 

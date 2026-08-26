@@ -3,10 +3,12 @@ import {
   AssignTenantWallet,
   CancelPaymentOrder,
   CreatePaymentOrder,
+  CreatePaymentOrderBatch,
   CreateTenant,
   DeactivateTenant,
   GetPaymentOrder,
   GetPaymentOrderEvents,
+  GetOnboardingStatus,
   GetPaymentOrderStatus,
   GetPublicPaymentOrder,
   GetTenant,
@@ -19,6 +21,7 @@ import {
   ResendWebhook,
   WebhookDispatcher,
 } from '../../src/application/index.js';
+import { NOOP_LOGGER } from '../../src/application/ports/index.js';
 import type { AuditEntry, AuditLogger } from '../../src/application/ports/index.js';
 import {
   Base58SlugGenerator,
@@ -149,6 +152,15 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
 
   const createTenant = new CreateTenant(tenants, ids, slugs, clock, stellarAccounts);
   const assignWallet = new AssignTenantWallet(tenants, orders, clock, stellarAccounts);
+  const createPaymentOrder = new CreatePaymentOrder({
+    tenants,
+    orders,
+    ids,
+    slugs,
+    clock,
+    registrationQueue: queue,
+    publicWebUrl: PUBLIC_WEB_URL,
+  });
 
   const routes = [
     ...authRoutes({
@@ -167,18 +179,12 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     }),
     ...onboardingRoutes({
       onboardWallet: new OnboardTenantWallet(tenants, createTenant, assignWallet),
+      getStatus: new GetOnboardingStatus(tenants),
       audit,
     }),
     ...paymentOrderRoutes({
-      create: new CreatePaymentOrder({
-        tenants,
-        orders,
-        ids,
-        slugs,
-        clock,
-        registrationQueue: queue,
-        publicWebUrl: PUBLIC_WEB_URL,
-      }),
+      create: createPaymentOrder,
+      createBatch: new CreatePaymentOrderBatch(createPaymentOrder, NOOP_LOGGER),
       get: new GetPaymentOrder(orders, PUBLIC_WEB_URL),
       list: new ListPaymentOrders(orders, PUBLIC_WEB_URL),
       status: new GetPaymentOrderStatus(orders, EXPLORER),
@@ -211,6 +217,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     corsOrigins: ['http://localhost:3001'],
     // The seeded admin is the first-deploy/root admin with full tenant visibility.
     rootAdminEmails: [adminEmail],
+    tenants,
     routes,
   });
 

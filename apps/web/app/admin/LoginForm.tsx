@@ -4,11 +4,10 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { getConfig } from '@/src/config';
 import { ApiError, PayOrderApi } from '@/src/lib/api';
-import { connectWallet, WalletError } from '@/src/stellar/freighter';
-import { truncateMiddle } from '@/src/lib/format';
 import { useI18n } from '@/src/i18n/LanguageProvider';
 import { LanguageSwitch } from '@/src/components/LanguageSwitch';
 import { BrandLogo } from '@/src/components/BrandLogo';
+import { ConnectWalletStep } from './ConnectWalletStep';
 
 type Mode = 'login' | 'register';
 /** After registering, the admin is asked to connect a wallet before entering the panel. */
@@ -184,66 +183,6 @@ export function LoginForm({ onAuthenticated }: { onAuthenticated: (token: string
           </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * Post-registration step: prompt the new admin to connect their Freighter wallet (Testnet) so
- * its public key is saved to their tenant. Non-custodial — only the public key is read, never a
- * secret. The admin may skip and configure a wallet later from the Tenants panel.
- */
-function ConnectWalletStep({ token, onDone }: { token: string; onDone: () => void }) {
-  const { t } = useI18n();
-  const [connecting, setConnecting] = useState(false);
-  const [savedAddress, setSavedAddress] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function connect() {
-    setConnecting(true);
-    setError(null);
-    try {
-      const { address } = await connectWallet();
-      const api = new PayOrderApi(getConfig().apiBaseUrl, token);
-      await api.onboardWallet(address);
-      setSavedAddress(address);
-      onDone();
-    } catch (err) {
-      if (err instanceof WalletError) {
-        setError(err.message);
-      } else if (err instanceof ApiError) {
-        setError(err.message || t('login.walletErrorSave'));
-      } else {
-        setError(t('login.walletErrorConnect'));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  return (
-    <div className="login-panel">
-      <h1>{t('login.walletTitle')}</h1>
-      <p className="muted">{t('login.walletSubtitle')}</p>
-      {savedAddress ? (
-        <div className="alert alert-success">
-          {t('login.walletSaved', { address: truncateMiddle(savedAddress, 8, 8) })}
-        </div>
-      ) : null}
-      {error ? <div className="alert alert-error">{error}</div> : null}
-      <button
-        className="btn btn-primary btn-block"
-        onClick={() => void connect()}
-        disabled={connecting}
-      >
-        {connecting ? <span className="spinner" /> : null}
-        {t('login.walletConnect')}
-      </button>
-      <p className="muted" style={{ marginBottom: 0, textAlign: 'center' }}>
-        <button type="button" className="link-btn" onClick={onDone} disabled={connecting}>
-          {t('login.walletSkip')}
-        </button>
-      </p>
     </div>
   );
 }
