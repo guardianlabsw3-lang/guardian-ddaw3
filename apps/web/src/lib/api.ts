@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  OnboardingStatus,
   PaymentOrder,
   PaymentOrderEvent,
   PublicPaymentOrder,
@@ -116,6 +117,17 @@ export class PayOrderApi {
       body: JSON.stringify({ stellar_wallet_public_key: publicKey, stellar_network: 'TESTNET' }),
     });
     return parse<Tenant>(res);
+  }
+
+  /**
+   * Check whether the current admin's account is already linked to a wallet. The panel calls
+   * this on every load of an existing session so it can show the mandatory connect-wallet gate
+   * for an account that never completed onboarding — the API itself enforces the same rule on
+   * every other admin route (`403 WALLET_REQUIRED`). See `GET /api/onboarding/wallet`.
+   */
+  async getOnboardingStatus(): Promise<OnboardingStatus> {
+    const res = await fetch(this.url('/onboarding/wallet'), { headers: this.headers() });
+    return parse<OnboardingStatus>(res);
   }
 
   async listTenants(): Promise<Tenant[]> {

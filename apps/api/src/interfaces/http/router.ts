@@ -13,6 +13,12 @@ export interface Route {
   readonly auth: 'none' | 'admin' | 'any';
   /** When true, the idempotency middleware requires/honours an `Idempotency-Key`. */
   readonly idempotent: boolean;
+  /**
+   * When true, skips `walletRequiredMiddleware` (feature "onboarding-wallet-required") — the
+   * only routes a non-root admin without a linked wallet may still reach, so they can check
+   * status and connect one.
+   */
+  readonly walletExempt: boolean;
 }
 
 export interface RouteDefinition {
@@ -25,6 +31,8 @@ export interface RouteDefinition {
   scopes?: readonly string[];
   /** Opt the route into idempotency-key handling (order creation; spec 08 §4). */
   idempotent?: boolean;
+  /** Opt the route out of `walletRequiredMiddleware` (feature "onboarding-wallet-required"). */
+  walletExempt?: boolean;
 }
 
 /**
@@ -45,6 +53,7 @@ export class Router {
       scopes: def.scopes,
       auth: def.auth ?? 'any',
       idempotent: def.idempotent ?? false,
+      walletExempt: def.walletExempt ?? false,
     });
     return this;
   }

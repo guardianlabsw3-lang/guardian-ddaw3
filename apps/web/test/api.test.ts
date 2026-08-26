@@ -132,6 +132,33 @@ describe('PayOrderApi.onboardWallet', () => {
   });
 });
 
+describe('PayOrderApi.getOnboardingStatus', () => {
+  it('GETs the onboarding-wallet endpoint with the Bearer token', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ has_wallet: false }));
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    const result = await api.getOnboardingStatus();
+
+    expect(result).toEqual({ has_wallet: false });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.test/api/onboarding/wallet');
+    expect(init.method ?? 'GET').toBe('GET');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer jwt-token');
+  });
+
+  it('throws an ApiError carrying WALLET_REQUIRED-adjacent 401 on an expired session', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: { code: 'UNAUTHENTICATED', message: 'expired' } }, 401),
+    );
+
+    const api = new PayOrderApi('https://api.test', 'jwt-token');
+    await expect(api.getOnboardingStatus()).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+      status: 401,
+    });
+  });
+});
+
 describe('PayOrderApi.listTenants', () => {
   it('unwraps the { items, total } envelope returned by the API', async () => {
     const tenants = [{ id: 'tenant-1' }, { id: 'tenant-2' }];

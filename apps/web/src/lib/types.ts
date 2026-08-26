@@ -79,6 +79,15 @@ export interface Paginated<T> {
   total?: number;
 }
 
+/**
+ * Whether the authenticated admin's account is linked to a wallet yet (feature
+ * "onboarding-wallet-required" / `GET /api/onboarding/wallet`). `false` even before a tenant
+ * exists for the admin.
+ */
+export interface OnboardingStatus {
+  has_wallet: boolean;
+}
+
 /** Standard API error envelope (spec 08 §1). */
 export interface ApiErrorBody {
   error: {

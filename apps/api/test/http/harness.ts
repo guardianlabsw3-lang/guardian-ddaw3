@@ -7,6 +7,7 @@ import {
   DeactivateTenant,
   GetPaymentOrder,
   GetPaymentOrderEvents,
+  GetOnboardingStatus,
   GetPaymentOrderStatus,
   GetPublicPaymentOrder,
   GetTenant,
@@ -167,6 +168,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     }),
     ...onboardingRoutes({
       onboardWallet: new OnboardTenantWallet(tenants, createTenant, assignWallet),
+      getStatus: new GetOnboardingStatus(tenants),
       audit,
     }),
     ...paymentOrderRoutes({
@@ -211,6 +213,7 @@ export async function buildHarness(options: HarnessOptions = {}): Promise<TestHa
     corsOrigins: ['http://localhost:3001'],
     // The seeded admin is the first-deploy/root admin with full tenant visibility.
     rootAdminEmails: [adminEmail],
+    tenants,
     routes,
   });
 

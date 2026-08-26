@@ -232,6 +232,21 @@ paths:
         "422": { $ref: "#/components/responses/UnprocessableEntity" }
 
   /onboarding/wallet:
+    get:
+      tags: [Tenants]
+      summary: Consulta se a conta do admin já está vinculada a uma wallet
+      description: >
+        Usado pelo painel para decidir se o gate obrigatório de conexão de carteira (feature
+        "onboarding-wallet-required") deve ser exibido — inclusive antes de existir um tenant
+        para o admin (equivalente a `has_wallet: false`). Único endpoint, além do `POST`
+        abaixo, que um admin sem wallet ainda pode acessar.
+      security: [ { AdminJWT: [] } ]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OnboardingStatus" }
     post:
       tags: [Tenants]
       summary: Conecta a wallet do admin recém-registrado ao seu tenant
@@ -239,7 +254,9 @@ paths:
         Fluxo de auto-onboarding: após o registro, o painel solicita a conexão da carteira e
         salva a chave pública no tenant do admin (criando o tenant na primeira conexão, com
         nome/documento provisórios editáveis). O tenant é resolvido pelo e-mail do admin
-        autenticado; a wallet nunca é aceita de outra origem.
+        autenticado; a wallet nunca é aceita de outra origem. Toda conta sem wallet vinculada
+        fica bloqueada (403 WALLET_REQUIRED) em qualquer outra rota admin até chamar este
+        endpoint (feature "onboarding-wallet-required").
       security: [ { AdminJWT: [] } ]
       requestBody:
         required: true
@@ -510,6 +527,15 @@ components:
         status: { $ref: "#/components/schemas/TenantStatus" }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    OnboardingStatus:
+      type: object
+      properties:
+        has_wallet:
+          type: boolean
+          description: >
+            false até o admin conectar uma wallet (feature "onboarding-wallet-required") —
+            inclusive quando o tenant ainda nem existe.
+      required: [has_wallet]
     CreatePaymentOrderRequest:
       type: object
       description: >

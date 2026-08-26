@@ -54,6 +54,8 @@ export interface RouteMeta {
   readonly handler: Handler;
   /** When true, the route requires and honours an `Idempotency-Key` header. */
   readonly idempotent: boolean;
+  /** When true, skips `walletRequiredMiddleware` (feature "onboarding-wallet-required"). */
+  readonly walletExempt: boolean;
 }
 
 export interface HttpResponse {

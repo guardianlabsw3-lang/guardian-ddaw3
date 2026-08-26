@@ -319,6 +319,66 @@ describe('PayOrder REST API (HTTP integration)', () => {
       });
       expect(res.status).toBe(401);
     });
+
+    it('reports has_wallet:false before connecting and true after (GET status)', async () => {
+      const h = await buildHarness();
+      const reg = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'fresh@acme.test', password: 'fresh-secret-pass' },
+      });
+      const auth = { authorization: `Bearer ${(reg.body as { access_token: string }).access_token}` };
+
+      const before = await h.request({ method: 'GET', path: '/api/onboarding/wallet', headers: auth });
+      expect(before.status).toBe(200);
+      expect((before.body as { has_wallet: boolean }).has_wallet).toBe(false);
+
+      await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+        body: { stellar_wallet_public_key: WALLET, stellar_network: 'TESTNET' },
+      });
+
+      const after = await h.request({ method: 'GET', path: '/api/onboarding/wallet', headers: auth });
+      expect((after.body as { has_wallet: boolean }).has_wallet).toBe(true);
+    });
+
+    it('blocks every other admin route with 403 WALLET_REQUIRED until a wallet is connected', async () => {
+      const h = await buildHarness();
+      const reg = await h.request({
+        method: 'POST',
+        path: '/api/auth/register',
+        body: { email: 'walletless@acme.test', password: 'walletless-secret' },
+      });
+      const auth = { authorization: `Bearer ${(reg.body as { access_token: string }).access_token}` };
+
+      // Any admin route other than the onboarding-wallet pair is blocked.
+      const blocked = await h.request({ method: 'GET', path: '/api/tenants', headers: auth });
+      expect(blocked.status).toBe(403);
+      expect((blocked.body as { error: { code: string } }).error.code).toBe('WALLET_REQUIRED');
+
+      // The onboarding-wallet routes stay reachable so the gate can actually be cleared.
+      const status = await h.request({ method: 'GET', path: '/api/onboarding/wallet', headers: auth });
+      expect(status.status).toBe(200);
+
+      await h.request({
+        method: 'POST',
+        path: '/api/onboarding/wallet',
+        headers: auth,
+        body: { stellar_wallet_public_key: WALLET, stellar_network: 'TESTNET' },
+      });
+
+      // Once connected, the previously blocked route works.
+      const unblocked = await h.request({ method: 'GET', path: '/api/tenants', headers: auth });
+      expect(unblocked.status).toBe(200);
+    });
+
+    it('never blocks the root admin, even without its own tenant wallet', async () => {
+      const h = await buildHarness();
+      const res = await h.request({ method: 'GET', path: '/api/tenants', headers: adminAuth(h) });
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('payment orders', () => {
