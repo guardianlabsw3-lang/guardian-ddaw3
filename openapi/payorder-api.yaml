@@ -347,6 +347,32 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  /payment-orders/batch:
+    post:
+      tags: [Payment Orders]
+      summary: Cria múltiplas cobranças em um único request (integradores ERP)
+      description: >
+        Processa cada item com as mesmas regras de /payment-orders (uma falha não aborta as
+        demais). Idempotency-Key obrigatório e cobre o payload inteiro; a deduplicação por
+        item usa (tenant_id, external_id), como em /payment-orders. Limite de 100 itens por
+        request; a resposta é sempre 200 e traz um relatório por item (sucesso ou erro).
+      security: [ { AdminJWT: [] }, { ApiKey: [] } ]
+      parameters: [ { $ref: "#/components/parameters/IdempotencyKey" } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePaymentOrderBatchRequest" }
+      responses:
+        "200":
+          description: Relatório de processamento (sucesso total ou parcial)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreatePaymentOrderBatchResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/UnprocessableEntity" }
+
   /payment-orders/{id}:
     get:
       tags: [Payment Orders]
@@ -555,6 +581,44 @@ components:
         callback_url: { type: [string, "null"], format: uri }
         metadata: { type: object, additionalProperties: true }
       required: [amount]
+    CreatePaymentOrderBatchRequest:
+      type: object
+      properties:
+        orders:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/CreatePaymentOrderRequest" }
+      required: [orders]
+    CreatePaymentOrderBatchResponse:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            total: { type: integer }
+            created: { type: integer }
+            failed: { type: integer }
+          required: [total, created, failed]
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/BatchItemResult" }
+      required: [summary, results]
+    BatchItemResult:
+      type: object
+      description: >
+        Exatamente um de `order`/`error` está presente, conforme o item foi criado ou falhou.
+      properties:
+        index: { type: integer, description: "Posição do item no array `orders` enviado." }
+        order: { $ref: "#/components/schemas/PaymentOrder" }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+          required: [code, message]
+      required: [index]
     PaymentOrder:
       type: object
       properties:

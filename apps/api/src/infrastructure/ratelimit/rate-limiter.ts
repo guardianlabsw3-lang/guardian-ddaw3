@@ -12,7 +12,11 @@ export interface RateLimitResult {
 }
 
 export interface RateLimiter {
-  hit(key: string): RateLimitResult;
+  /** `cost` (default 1) lets a single request consume more than one unit of the budget — used
+   * by the batch payment-orders route to weight by item count (feature
+   * "batch-payment-orders"), so batching many orders into one HTTP call can't bypass the
+   * per-order throughput limit. */
+  hit(key: string, cost?: number): RateLimitResult;
 }
 
 export interface FixedWindowOptions {
@@ -44,7 +48,7 @@ export class InMemoryRateLimiter implements RateLimiter {
     this.now = options.now ?? Date.now;
   }
 
-  hit(key: string): RateLimitResult {
+  hit(key: string, cost = 1): RateLimitResult {
     const now = this.now();
     let window = this.windows.get(key);
     if (!window || window.resetAt <= now) {
@@ -52,7 +56,7 @@ export class InMemoryRateLimiter implements RateLimiter {
       this.windows.set(key, window);
       this.prune(now);
     }
-    window.count += 1;
+    window.count += cost;
     const remaining = Math.max(0, this.limit - window.count);
     const retryAfterSeconds = Math.ceil((window.resetAt - now) / 1000);
     return {

@@ -3,6 +3,7 @@ import {
   AssignTenantWallet,
   CancelPaymentOrder,
   CreatePaymentOrder,
+  CreatePaymentOrderBatch,
   CreateTenant,
   DeactivateTenant,
   ExpireOrders,
@@ -165,6 +166,16 @@ export async function buildE2EHarness(options: E2EHarnessOptions = {}): Promise<
     allowedTenantIds: options.apiKeyTenants ?? null,
   });
 
+  const createPaymentOrder = new CreatePaymentOrder({
+    tenants,
+    orders,
+    ids,
+    slugs,
+    clock,
+    registrationQueue: queue,
+    publicWebUrl: PUBLIC_WEB_URL,
+  });
+
   const routes = [
     ...authRoutes({ login: new LoginAdmin({ admins, hasher, tokens }) }),
     ...tenantRoutes({
@@ -178,15 +189,8 @@ export async function buildE2EHarness(options: E2EHarnessOptions = {}): Promise<
       audit: { async record() {} },
     }),
     ...paymentOrderRoutes({
-      create: new CreatePaymentOrder({
-        tenants,
-        orders,
-        ids,
-        slugs,
-        clock,
-        registrationQueue: queue,
-        publicWebUrl: PUBLIC_WEB_URL,
-      }),
+      create: createPaymentOrder,
+      createBatch: new CreatePaymentOrderBatch(createPaymentOrder, logger),
       get: new GetPaymentOrder(orders, PUBLIC_WEB_URL),
       list: new ListPaymentOrders(orders, PUBLIC_WEB_URL),
       status: new GetPaymentOrderStatus(orders, EXPLORER),
